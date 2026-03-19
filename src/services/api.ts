@@ -1,0 +1,113 @@
+import type { ChatResponse, AuthResponse, User } from '../types/chat';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export const tokenService = {
+  getToken: () => localStorage.getItem('access_token'),
+  getRefreshToken: () => localStorage.getItem('refresh_token'),
+  setTokens: (access: string, refresh?: string) => {
+    localStorage.setItem('access_token', access);
+    if (refresh) localStorage.setItem('refresh_token', refresh);
+  },
+  clearTokens: () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  },
+};
+
+const apiCall = async (endpoint: string, options: RequestInit = {}) => {
+  const token = tokenService.getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(typeof options.headers === 'object' && options.headers ? (options.headers as Record<string, string>) : {}),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'API Error');
+  }
+
+  return response.json();
+};
+
+export const authApi = {
+  devToken: async (username: string = 'developer'): Promise<AuthResponse> => {
+    return fetch(
+      `${API_BASE_URL}/api/auth/dev/token?username=${username}`
+    ).then(r => {
+      if (!r.ok) throw new Error('Failed to get dev token');
+      return r.json();
+    });
+  },
+
+  login: async (username: string, password: string): Promise<AuthResponse> => {
+    const formData = new URLSearchParams();
+    formData.append('username', username);
+    formData.append('password', password);
+
+    return fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    }).then(r => {
+      if (!r.ok) throw new Error('Login failed');
+      return r.json();
+    });
+  },
+
+  refreshToken: async (): Promise<AuthResponse> => {
+    const refreshToken = tokenService.getRefreshToken();
+    if (!refreshToken) throw new Error('No refresh token available');
+
+    return apiCall('/api/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  },
+
+  getCurrentUser: async (): Promise<User> => {
+    return apiCall('/api/auth/me');
+  },
+
+  logout: () => {
+    tokenService.clearTokens();
+  },
+};
+
+export const chatApi = {
+  sendMessage: async (message: string, conversationHistory: any[] = []): Promise<ChatResponse> => {
+    return apiCall('/api/chat/', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        conversation_history: conversationHistory,
+      }),
+    });
+  },
+
+  // Ingest knowledge documents
+  ingestDocuments: async (documents: string[]): Promise<any> => {
+    return apiCall('/api/knowledge/ingest', {
+      method: 'POST',
+      body: JSON.stringify({ documents }),
+    });
+  },
+};
+
+// Health check
+export const healthApi = {
+  check: async (): Promise<any> => {
+    return fetch(`${API_BASE_URL}/api/health`, {
+      headers: { 'Content-Type': 'application/json' },
+    }).then(r => r.json()).catch(() => ({ status: 'offline' }));
+  },
+};
