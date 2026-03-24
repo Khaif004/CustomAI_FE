@@ -24,7 +24,7 @@ export const ChatbotApp = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(!isAuthenticated);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-authenticate on mount or when token expires
   useEffect(() => {
@@ -44,12 +44,18 @@ export const ChatbotApp = () => {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [currentConversation.messages]);
+  }, [currentConversation.messages, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,7 +174,7 @@ export const ChatbotApp = () => {
           </div>
         </div>
 
-        <div className="messages-container">
+        <div className="messages-container" ref={messagesContainerRef}>
           {currentConversation.messages.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">AI</div>
@@ -192,20 +198,25 @@ export const ChatbotApp = () => {
             </div>
           ) : (
             <div className="messages-wrapper">
-              {currentConversation.messages.map((message: any) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
-              {isLoading && (
+              {currentConversation.messages.map((message: any, index: number) => {
+                const isLastMessage = index === currentConversation.messages.length - 1;
+                const isStreaming = isLastMessage && isLoading && message.role === 'assistant';
+                return (
+                  <ChatMessage 
+                    key={message.id} 
+                    message={message}
+                    isStreaming={isStreaming}
+                  />
+                );
+              })}
+              {isLoading && currentConversation.messages.length > 0 && currentConversation.messages[currentConversation.messages.length - 1]?.role === 'user' && (
                 <div className="loading-message">
-                  <div className="message-avatar">AI</div>
-                  <div className="loading-dots">
-                    <div className="loading-dot"></div>
-                    <div className="loading-dot"></div>
-                    <div className="loading-dot"></div>
+                  <div className="loading-indicator">
+                    <span className="loading-text">Thinking</span>
+                    <div className="loading-spinner"></div>
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>

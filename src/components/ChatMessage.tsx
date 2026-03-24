@@ -1,10 +1,39 @@
+import { useState, useEffect } from 'react';
 import type { ChatMessage as ChatMessageType } from "../types/chat";
 /*merge changes*/
 interface ChatMessageProps {
   message: ChatMessageType;
+  isStreaming?: boolean;
 }
 
-export const ChatMessage = ({ message }: ChatMessageProps) => {
+export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) => {
+  const [displayedText, setDisplayedText] = useState(() => isStreaming ? "" : message.content);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setDisplayedText(message.content);
+      return;
+    }
+
+    // Start from current displayed text or 0
+    let index = displayedText.length;
+    
+    // Only start interval if we haven't reached the end
+    if (index >= message.content.length) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      index++;
+      setDisplayedText(message.content.substring(0, index));
+      if (index >= message.content.length) {
+        clearInterval(interval);
+      }
+    }, 15); // Speed of reveal
+
+    return () => clearInterval(interval);
+  }, [message.content, isStreaming, displayedText]);
+
   const formatTime = (timestamp: Date) => {
     const date = new Date(timestamp);
     const now = new Date();
@@ -57,7 +86,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
     return formatted;
   };
 
-  const isCodeBlock = message.content.includes("```");
+  const isCodeBlock = displayedText.includes("```");
   
   return (
     <div className={`message ${message.role}`}>
@@ -65,9 +94,9 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
         <div className="message-body">
           {isCodeBlock ? (
             // Handle code blocks
-            message.content.split("```").map((block: string, index: number) => {
+            displayedText.split("```").map((block: string, index: number) => {
               if (index % 2 === 0) {
-                return <p key={index}>{block}</p>;
+                return <p key={index} className={isStreaming && index === displayedText.split("```").length - 1 ? "typewriter" : ""}>{block}</p>;
               }
               const lines = block.split("\n");
               const language = lines[0].trim();
@@ -79,7 +108,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
               );
             })
           ) : (
-            formatContent(message.content)
+            formatContent(displayedText)
           )}
         </div>
         {message.role === "assistant" && (
