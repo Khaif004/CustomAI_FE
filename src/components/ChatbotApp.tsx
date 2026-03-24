@@ -1,250 +1,262 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage } from './ChatMessage';
-import { ConversationSidebar } from './ConversationSidebar';
-import { useChatbot } from '../hooks/useChatbot';
-import '../styles/chatbot.css';
+import { useState, useRef, useEffect } from "react";
+import { ConversationSidebar } from "./ConversationSidebar";
+import { ChatMessage } from "./ChatMessage";
+import { useChatbot } from "../hooks/useChatbot";
+import "../styles/chatbot.css";
 
-export const ChatbotApp: React.FC = () => {
-  const [input, setInput] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
+export const ChatbotApp = () => {
   const {
     conversations,
     currentConversation,
     isLoading,
-    error,
     isAuthenticated,
-    authenticate,
     sendMessage,
     newConversation,
     deleteConversation,
     clearAll,
     setCurrentConversationId,
+    authenticate,
+    error,
   } = useChatbot();
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentConversation.messages]);
+  const [inputValue, setInputValue] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(!isAuthenticated);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-authenticate on mount
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !showAuthPrompt) {
       setShowAuthPrompt(true);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, showAuthPrompt]);
 
-  // Handle auth
-  const handleAuthenticate = async () => {
+  useEffect(() => {
+    if (error?.includes('401') || error?.includes('Unauthorized')) {
+      setShowAuthPrompt(true);
+    }
+  }, [error]);
+
+  const handleLogin = async () => {
     try {
       await authenticate();
       setShowAuthPrompt(false);
     } catch (err) {
-      console.error('Auth error:', err);
+      console.error('Login failed:', err);
     }
   };
 
-  // Handle send message
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!input.trim() || isLoading || !isAuthenticated) return;
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
-    const message = input.trim();
-    setInput('');
-    setSidebarOpen(false);
+  useEffect(() => {
+    scrollToBottom();
+  }, [currentConversation.messages]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim() || isLoading) return;
+
+    const message = inputValue.trim();
+    setInputValue("");
     
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "24px";
+    }
+
     await sendMessage(message);
   };
 
-  // Handle paste image (future feature)
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items;
-    if (items) {
-      for (let item of items) {
-        if (item.type.indexOf('image') !== -1) {
-          // Future: handle image upload
-          console.log('Image paste detected (future feature)');
-        }
-      }
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+    
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "24px";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  };
+
+  const handleNewChat = () => {
+    newConversation();
+    setInputValue("");
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setInputValue(suggestion);
+    textareaRef.current?.focus();
+  };
+
+  const suggestions = [
+    {
+      title: "Explain a concept",
+      text: "How does machine learning work?",
+    },
+    {
+      title: "Write code",
+      text: "Create a React component for a button",
+    },
+    {
+      title: "Get help",
+      text: "What can you help me with?",
+    },
+    {
+      title: "Analyze data",
+      text: "Help me understand this dataset",
+    },
+  ];
+
   return (
-    <div className="chatbot-container">
-      {/* Sidebar */}
+    <div className="chatbot-app">
+      {showAuthPrompt && (
+        <div className="auth-overlay">
+          <div className="auth-modal">
+            <div className="auth-header">
+              <div className="auth-icon">AI</div>
+              <h1>Welcome to ChatBot</h1>
+            </div>
+            <p className="auth-description">
+              Sign in to start chatting and access your conversation history.
+            </p>
+            <button 
+              className="auth-button" 
+              onClick={handleLogin}
+            >
+              Sign In
+            </button>
+            {error && (
+              <div className="auth-error">
+                {error}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <ConversationSidebar
         conversations={conversations}
         currentId={currentConversation.id}
-        isOpen={sidebarOpen}
-        onSelectConversation={(id) => {
+        onNewChat={handleNewChat}
+        onSelectConversation={(id: string) => {
           setCurrentConversationId(id);
-          setSidebarOpen(false);
-        }}
-        onNewConversation={() => {
-          newConversation();
           setSidebarOpen(false);
         }}
         onDeleteConversation={deleteConversation}
         onClearAll={clearAll}
+        isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      {/* Main Chat Area */}
-      <main className="chat-area">
-        {/* Auth Prompt */}
-        {showAuthPrompt && (
-          <div className="auth-prompt">
-            <div className="auth-card">
-              <h2>Welcome to ChatBot</h2>
-              <p>Sign in to start chatting with your AI assistant</p>
-              <button className="auth-btn" onClick={handleAuthenticate}>
-                Sign In (Developer)
-              </button>
-              <p className="auth-hint">Using dev token for demonstration</p>
-            </div>
+      <div className="chat-main">
+        <div className="chat-header">
+          <div className="chat-title">
+            {currentConversation.title || "New Chat"}
           </div>
-        )}
+          <div className="chat-actions">
+            <button className="icon-btn" title="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+              </svg>
+            </button>
+          </div>
+        </div>
 
-        {/* Empty State */}
-        {currentConversation.messages.length === 0 && isAuthenticated && !showAuthPrompt && (
-          <div className="empty-chat">
-            <div className="welcome-section">
-              <h1>How can I help you today?</h1>
-              <p>Chat with your AI-powered assistant</p>
-
-              {/* Quick Prompts */}
-              <div className="quick-prompts">
-                <button
-                  className="prompt-btn"
-                  onClick={() => {
-                    setInput('Explain the system architecture');
-                    document.querySelector('textarea')?.focus();
-                  }}
-                >
-                  <span className="prompt-icon">📋</span>
-                  <span>Explain architecture</span>
-                </button>
-                <button
-                  className="prompt-btn"
-                  onClick={() => {
-                    setInput('What can this system do?');
-                    document.querySelector('textarea')?.focus();
-                  }}
-                >
-                  <span className="prompt-icon">✨</span>
-                  <span>System capabilities</span>
-                </button>
-                <button
-                  className="prompt-btn"
-                  onClick={() => {
-                    setInput('Show me cost comparison with Joule');
-                    document.querySelector('textarea')?.focus();
-                  }}
-                >
-                  <span className="prompt-icon">💰</span>
-                  <span>Cost comparison</span>
-                </button>
-                <button
-                  className="prompt-btn"
-                  onClick={() => {
-                    setInput('How do I integrate with SAP systems?');
-                    document.querySelector('textarea')?.focus();
-                  }}
-                >
-                  <span className="prompt-icon">🔗</span>
-                  <span>SAP integration</span>
-                </button>
+        <div className="messages-container">
+          {currentConversation.messages.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">AI</div>
+              <h2>How can I help you today?</h2>
+              <p>
+                I'm here to assist you with questions, coding, writing, analysis, and more.
+                Start a conversation below.
+              </p>
+              <div className="suggestions">
+                {suggestions.map((suggestion, index) => (
+                  <div
+                    key={index}
+                    className="suggestion-card"
+                    onClick={() => handleSuggestionClick(suggestion.text)}
+                  >
+                    <h4>{suggestion.title}</h4>
+                    <p>{suggestion.text}</p>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Messages */}
-        {currentConversation.messages.length > 0 && (
-          <div className="messages-container">
-            {currentConversation.messages.map(msg => (
-              <ChatMessage key={msg.id} message={msg} />
-            ))}
-
-            {isLoading && (
-              <div className="chat-message-wrapper assistant">
-                <div className="chat-message">
-                  <div className="message-content assistant loading">
-                    <div className="typing-indicator">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
+          ) : (
+            <div className="messages-wrapper">
+              {currentConversation.messages.map((message: any) => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+              {isLoading && (
+                <div className="loading-message">
+                  <div className="message-avatar">AI</div>
+                  <div className="loading-dots">
+                    <div className="loading-dot"></div>
+                    <div className="loading-dot"></div>
+                    <div className="loading-dot"></div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
 
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="error-message">
-            <strong>Error:</strong> {error}
-            <button onClick={() => {}}>Dismiss</button>
-          </div>
-        )}
-
-        {/* Input Area */}
-        <form className="chat-input-form" onSubmit={handleSendMessage}>
+        <div className="input-area">
           <div className="input-wrapper">
-            <textarea
-              className="chat-input"
-              placeholder="Message ChatBot... (Shift + Enter for new line)"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onPaste={handlePaste}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage(e as any);
-                }
-              }}
-              disabled={isLoading || !isAuthenticated}
-              rows={1}
-            />
-
-            <div className="input-actions">
-              <button
-                type="button"
-                className="action-btn"
-                title="Attach file (coming soon)"
-                disabled
-              >
-                📎
-              </button>
-              <button
-                type="submit"
-                className="send-btn"
-                disabled={!input.trim() || isLoading || !isAuthenticated}
-                title={isAuthenticated ? 'Send message' : 'Sign in to send'}
-              >
-                {isLoading ? <span className="spinner"></span> : '→'}
-              </button>
+            <form onSubmit={handleSubmit}>
+              <div className="input-container">
+                <textarea
+                  ref={textareaRef}
+                  className="message-input"
+                  value={inputValue}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Message AI..."
+                  rows={1}
+                  disabled={isLoading}
+                />
+                <div className="input-actions">
+                  <button
+                    type="button"
+                    className="attach-btn"
+                    title="Attach file"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+                    </svg>
+                  </button>
+                  <button
+                    type="submit"
+                    className="send-btn"
+                    disabled={!inputValue.trim() || isLoading}
+                    title="Send message"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </form>
+            <div className="input-hint">
+              Press Enter to send, Shift + Enter for new line
             </div>
           </div>
-
-          <div className="input-footer">
-            <small>
-              {isAuthenticated ? (
-                <>✅ Connected to backend</>
-              ) : (
-                <>⚠️ Not authenticated</>
-              )}
-            </small>
-          </div>
-        </form>
-      </main>
+        </div>
+      </div>
     </div>
   );
 };
