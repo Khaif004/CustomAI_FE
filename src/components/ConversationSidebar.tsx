@@ -1,3 +1,4 @@
+/*merge changes*/
 import { useState, useEffect } from "react";
 import type { Conversation } from "../types/chat";
 
@@ -21,19 +22,22 @@ export const ConversationSidebar = ({
   onDeleteConversation,
 }: ConversationSidebarProps) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  }>({ top: 0, left: 0 });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       // Check if clicked outside any menu
-      const dropdowns = document.querySelectorAll('.dropdown-menu');
+      const dropdowns = document.querySelectorAll(".dropdown-menu");
       let clickedInMenu = false;
       dropdowns.forEach((dropdown) => {
         if (dropdown.contains(event.target as Node)) {
           clickedInMenu = true;
         }
       });
-      
+
       if (!clickedInMenu) {
         setOpenMenuId(null);
       }
@@ -41,14 +45,18 @@ export const ConversationSidebar = ({
 
     if (openMenuId) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [openMenuId]);
   const getConversationTitle = (conversation: Conversation) => {
     if (conversation.title) return conversation.title;
     const firstMessage = conversation.messages[0];
     if (firstMessage && firstMessage.role === "user") {
-      return firstMessage.content.slice(0, 30) + (firstMessage.content.length > 30 ? "..." : "");
+      return (
+        firstMessage.content.slice(0, 30) +
+        (firstMessage.content.length > 30 ? "..." : "")
+      );
     }
     return "New Chat";
   };
@@ -78,10 +86,8 @@ export const ConversationSidebar = ({
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
               </svg> */}
               <span>{getConversationTitle(conversation)}</span>
-              
-              <div 
-                className="conversation-item-menu"
-              >
+
+              <div className="conversation-item-menu">
                 <button
                   className="menu-trigger"
                   onClick={(e) => {
@@ -92,19 +98,46 @@ export const ConversationSidebar = ({
                       top: rect.bottom + 4,
                       left: rect.left,
                     });
-                    setOpenMenuId(openMenuId === conversation.id ? null : conversation.id);
+                    setOpenMenuId(
+                      openMenuId === conversation.id ? null : conversation.id,
+                    );
                   }}
                   title="More options"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-                    <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
-                    <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="1"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                    <circle
+                      cx="19"
+                      cy="12"
+                      r="1"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                    <circle
+                      cx="5"
+                      cy="12"
+                      r="1"
+                      fill="currentColor"
+                      stroke="none"
+                    />
                   </svg>
                 </button>
-                
+
                 {openMenuId === conversation.id && (
-                  <div 
+                  <div
                     className="dropdown-menu"
                     style={{
                       top: `${menuPosition.top}px`,

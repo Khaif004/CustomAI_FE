@@ -1,6 +1,17 @@
 import type { ChatResponse, AuthResponse, User } from '../types/chat';
-
+/*merge changes*/
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Custom error class with status code
+export class ApiError extends Error {
+  status: number;
+  
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
 
 export const tokenService = {
   getToken: () => localStorage.getItem('access_token'),
@@ -33,7 +44,8 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.detail || 'API Error');
+    const errorMessage = error.detail || error.message || 'API Error';
+    throw new ApiError(response.status, errorMessage);
   }
 
   return response.json();

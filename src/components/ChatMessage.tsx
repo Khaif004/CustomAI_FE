@@ -1,5 +1,5 @@
 import type { ChatMessage as ChatMessageType } from "../types/chat";
-
+/*merge changes*/
 interface ChatMessageProps {
   message: ChatMessageType;
 }
