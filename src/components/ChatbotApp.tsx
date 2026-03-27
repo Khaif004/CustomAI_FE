@@ -1,9 +1,9 @@
-/*merge changes*/
 import { useState, useRef, useEffect } from "react";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
 import "../styles/chatbot.css";
+import "../styles/modal.css";
 
 export const ChatbotApp = () => {
   const {

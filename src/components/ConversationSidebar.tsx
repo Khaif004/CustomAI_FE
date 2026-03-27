@@ -1,6 +1,8 @@
-/*merge changes*/
 import { useState, useEffect } from "react";
 import type { Conversation } from "../types/chat";
+import newWhiteIcon from "../assets/newWhiteIcon.svg";
+import searchWhiteIcon from "../assets/searchWhiteIcon.svg";
+import { SearchChatModal } from "./SearchChatModal";
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
@@ -26,6 +28,7 @@ export const ConversationSidebar = ({
     top: number;
     left: number;
   }>({ top: 0, left: 0 });
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -49,6 +52,7 @@ export const ConversationSidebar = ({
         document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [openMenuId]);
+
   const getConversationTitle = (conversation: Conversation) => {
     if (conversation.title) return conversation.title;
     const firstMessage = conversation.messages[0];
@@ -64,18 +68,23 @@ export const ConversationSidebar = ({
   return (
     <aside className={`sidebar ${isOpen ? "open" : ""}`}>
       <div className="sidebar-header">
-        <button className="new-chat-btn" onClick={onNewChat}>
-          <svg viewBox="0 0 24 24">
-            <path d="M12 5v14m-7-7h14" />
-          </svg>
-          New chat
-        </button>
+        <div className="sidebar-icon-menu">
+          <a className="icon-menu-item" onClick={onNewChat} title="New chat">
+            <img src={newWhiteIcon} alt="New chat" />
+            <span>New chat</span>
+          </a>
+          <a className="icon-menu-item" onClick={() => setIsSearchModalOpen(true)} title="Search chats">
+            <img src={searchWhiteIcon} alt="Search" />
+            <span>Search chats</span>
+          </a>
+        </div>
       </div>
 
       <div className="sidebar-content">
         <div className="conversation-list">
-          {conversations.map((conversation) => (
-            <div
+          {conversations.length > 0 ? (
+            conversations.map((conversation) => (
+              <div
               key={conversation.id}
               className={`conversation-item ${
                 conversation.id === currentId ? "active" : ""
@@ -189,7 +198,12 @@ export const ConversationSidebar = ({
                 )}
               </div>
             </div>
-          ))}
+            ))
+          ) : (
+            <div className="no-conversations">
+              <p>No chats yet</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -202,6 +216,13 @@ export const ConversationSidebar = ({
           </div>
         </div>
       </div>
+
+      <SearchChatModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        conversations={conversations}
+        onSelectConversation={onSelectConversation}
+      />
     </aside>
   );
 };

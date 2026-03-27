@@ -1,5 +1,4 @@
 import type { ChatResponse, AuthResponse, User } from '../types/chat';
-/*merge changes*/
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Custom error class with status code

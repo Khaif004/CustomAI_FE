@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ChatMessage as ChatMessageType } from "../types/chat";
-/*merge changes*/
+
 interface ChatMessageProps {
   message: ChatMessageType;
   isStreaming?: boolean;
