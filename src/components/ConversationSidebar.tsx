@@ -83,7 +83,9 @@ export const ConversationSidebar = ({
       <div className="sidebar-content">
         <div className="conversation-list">
           {conversations.length > 0 ? (
-            conversations.map((conversation) => (
+            [...conversations]
+              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+              .map((conversation) => (
               <div
               key={conversation.id}
               className={`conversation-item ${
@@ -201,7 +203,7 @@ export const ConversationSidebar = ({
             ))
           ) : (
             <div className="no-conversations">
-              <p>No chats yet</p>
+              {/* <p>No chats yet</p> */}
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ChatMessage as ChatMessageType } from "../types/chat";
 
 interface ChatMessageProps {
@@ -50,40 +50,125 @@ export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) 
     });
   };
 
+  const formatInline = (text: string): (string | React.JSX.Element)[] => {
+    const parts: (string | React.JSX.Element)[] = [];
+    let remaining = text;
+    let keyIdx = 0;
+
+    while (remaining.length > 0) {
+      const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+      const codeMatch = remaining.match(/`([^`]+)`/);
+
+      const matches = [
+        boldMatch ? { type: 'bold', match: boldMatch, index: boldMatch.index! } : null,
+        codeMatch ? { type: 'code', match: codeMatch, index: codeMatch.index! } : null,
+      ].filter(Boolean).sort((a, b) => a!.index - b!.index);
+
+      if (matches.length === 0) {
+        parts.push(remaining);
+        break;
+      }
+
+      const first = matches[0]!;
+      if (first.index > 0) {
+        parts.push(remaining.substring(0, first.index));
+      }
+
+      if (first.type === 'bold') {
+        parts.push(<strong key={`b${keyIdx++}`}>{first.match![1]}</strong>);
+      } else if (first.type === 'code') {
+        parts.push(<code key={`c${keyIdx++}`} className="inline-code">{first.match![1]}</code>);
+      }
+
+      remaining = remaining.substring(first.index + first.match![0].length);
+    }
+
+    return parts;
+  };
+
   const formatContent = (content: string) => {
-    // Simple markdown-like formatting
     const lines = content.split("\n");
-    const formatted = lines.map((line, index) => {
+    const elements: React.JSX.Element[] = [];
+    let inList = false;
+    let listItems: React.JSX.Element[] = [];
+    let listType: 'ul' | 'ol' = 'ul';
+    let listKey = 0;
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        if (listType === 'ol') {
+          elements.push(<ol key={`list-${listKey++}`}>{listItems}</ol>);
+        } else {
+          elements.push(<ul key={`list-${listKey++}`}>{listItems}</ul>);
+        }
+        listItems = [];
+        inList = false;
+      }
+    };
+
+    lines.forEach((line, index) => {
       // Code blocks
       if (line.startsWith("```")) {
-        return null; // Handle in separate pass
+        flushList();
+        return;
       }
-      
+
       // Headers
-      if (line.startsWith("# ")) {
-        return <h3 key={index}>{line.slice(2)}</h3>;
+      if (line.startsWith("### ")) {
+        flushList();
+        elements.push(<h5 key={index}>{formatInline(line.slice(4))}</h5>);
+        return;
       }
       if (line.startsWith("## ")) {
-        return <h4 key={index}>{line.slice(3)}</h4>;
+        flushList();
+        elements.push(<h4 key={index}>{formatInline(line.slice(3))}</h4>);
+        return;
       }
-      
-      // Lists
-      if (line.match(/^[\*\-]\s/)) {
-        return <li key={index}>{line.slice(2)}</li>;
+      if (line.startsWith("# ")) {
+        flushList();
+        elements.push(<h3 key={index}>{formatInline(line.slice(2))}</h3>);
+        return;
       }
-      if (line.match(/^\d+\.\s/)) {
-        return <li key={index}>{line.replace(/^\d+\.\s/, "")}</li>;
+
+      // Unordered lists (- item or * item)
+      const ulMatch = line.match(/^[\*\-]\s+(.*)/);
+      if (ulMatch) {
+        if (!inList || listType !== 'ul') {
+          flushList();
+          inList = true;
+          listType = 'ul';
+        }
+        listItems.push(<li key={index}>{formatInline(ulMatch[1])}</li>);
+        return;
       }
-      
+
+      // Ordered lists (1. item)
+      const olMatch = line.match(/^\d+\.\s+(.*)/);
+      if (olMatch) {
+        if (!inList || listType !== 'ol') {
+          flushList();
+          inList = true;
+          listType = 'ol';
+        }
+        listItems.push(<li key={index}>{formatInline(olMatch[1])}</li>);
+        return;
+      }
+
       // Regular paragraph
       if (line.trim()) {
-        return <p key={index}>{line}</p>;
+        flushList();
+        elements.push(<p key={index}>{formatInline(line)}</p>);
+        return;
       }
-      
-      return null;
-    }).filter(Boolean);
 
-    return formatted;
+      // Empty line - flush any pending list
+      flushList();
+    });
+
+    // Flush any remaining list
+    flushList();
+
+    return elements;
   };
 
   const isCodeBlock = displayedText.includes("```");
@@ -96,10 +181,9 @@ export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) 
             // Handle code blocks
             displayedText.split("```").map((block: string, index: number) => {
               if (index % 2 === 0) {
-                return <p key={index} className={isStreaming && index === displayedText.split("```").length - 1 ? "typewriter" : ""}>{block}</p>;
+                return <div key={index}>{formatContent(block)}</div>;
               }
               const lines = block.split("\n");
-              const language = lines[0].trim();
               const code = lines.slice(1).join("\n");
               return (
                 <pre key={index}>

@@ -82,7 +82,6 @@ export const ChatbotApp = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
 
-    // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = "24px";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
@@ -108,14 +107,14 @@ export const ChatbotApp = () => {
       title: "Write code",
       text: "Create a React component for a button",
     },
-    {
-      title: "Get help",
-      text: "What can you help me with?",
-    },
-    {
-      title: "Analyze data",
-      text: "Help me understand this dataset",
-    },
+    // {
+    //   title: "Get help",
+    //   text: "What can you help me with?",
+    // },
+    // {
+    //   title: "Analyze data",
+    //   text: "Help me understand this dataset",
+    // },
   ];
 
   return (

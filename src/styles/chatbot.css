@@ -615,7 +615,7 @@
 }
 
 .message-body p {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 .message-body p.typewriter {
@@ -629,14 +629,62 @@
   margin-bottom: 0;
 }
 
+.message-body strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+.message-body h3,
+.message-body h4,
+.message-body h5 {
+  font-weight: 700;
+  margin: 16px 0 8px;
+}
+
+.message-body h3 {
+  font-size: 1.15em;
+}
+
+.message-body h4 {
+  font-size: 1.05em;
+}
+
+.message-body h5 {
+  font-size: 1em;
+}
+
+.message-body h3:first-child,
+.message-body h4:first-child,
+.message-body h5:first-child {
+  margin-top: 0;
+}
+
+.message-body .inline-code {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+  font-family: var(--font-mono);
+}
+
 .message-body ul,
 .message-body ol {
   margin: 8px 0;
-  padding-left: 20px;
+  padding-left: 24px;
+}
+
+.message-body ol {
+  list-style-type: decimal;
+}
+
+.message-body ul {
+  list-style-type: disc;
 }
 
 .message-body li {
-  margin: 4px 0;
+  margin: 6px 0;
+  padding-left: 4px;
+  line-height: 1.6;
 }
 
 .message-body pre {
