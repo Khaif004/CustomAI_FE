@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import type { ChatMessage as ChatMessageType } from "../types/chat";
 
 interface ChatMessageProps {
@@ -7,32 +7,7 @@ interface ChatMessageProps {
 }
 
 export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) => {
-  const [displayedText, setDisplayedText] = useState(() => isStreaming ? "" : message.content);
-
-  useEffect(() => {
-    if (!isStreaming) {
-      setDisplayedText(message.content);
-      return;
-    }
-
-    // Start from current displayed text or 0
-    let index = displayedText.length;
-    
-    // Only start interval if we haven't reached the end
-    if (index >= message.content.length) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      index++;
-      setDisplayedText(message.content.substring(0, index));
-      if (index >= message.content.length) {
-        clearInterval(interval);
-      }
-    }, 15); // Speed of reveal
-
-    return () => clearInterval(interval);
-  }, [message.content, isStreaming, displayedText]);
+  const displayedText = message.content;
 
   const formatTime = (timestamp: Date) => {
     const date = new Date(timestamp);
@@ -178,7 +153,6 @@ export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) 
       <div className="message-content">
         <div className="message-body">
           {isCodeBlock ? (
-            // Handle code blocks
             displayedText.split("```").map((block: string, index: number) => {
               if (index % 2 === 0) {
                 return <div key={index}>{formatContent(block)}</div>;
@@ -194,6 +168,7 @@ export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) 
           ) : (
             formatContent(displayedText)
           )}
+          {/* {isStreaming && <span className="streaming-cursor" />} */}
         </div>
         {message.role === "assistant" && (
           <div className="message-actions">

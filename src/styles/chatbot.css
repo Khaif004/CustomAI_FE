@@ -950,6 +950,16 @@
   animation: blink 0.7s infinite;
 }
 
+/* .streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent-primary);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.7s infinite;
+} */
+
 @keyframes blink {
   0%,
   49% {

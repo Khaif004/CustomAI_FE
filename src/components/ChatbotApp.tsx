@@ -10,6 +10,7 @@ export const ChatbotApp = () => {
     conversations,
     currentConversation,
     isLoading,
+    isStreaming,
     isAuthenticated,
     sendMessage,
     newConversation,
@@ -53,9 +54,11 @@ export const ChatbotApp = () => {
     });
   };
 
+  // Auto-scroll during streaming and on new messages
+  const lastMessage = currentConversation.messages[currentConversation.messages.length - 1];
   useEffect(() => {
     scrollToBottom();
-  }, [currentConversation.messages, isLoading]);
+  }, [currentConversation.messages, isLoading, lastMessage?.content]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,16 +202,16 @@ export const ChatbotApp = () => {
             <div className="messages-wrapper">
               {currentConversation.messages.map((message: any, index: number) => {
                 const isLastMessage = index === currentConversation.messages.length - 1;
-                const isStreaming = isLastMessage && isLoading && message.role === 'assistant';
+                const isMessageStreaming = isLastMessage && isStreaming && message.role === 'assistant';
                 return (
                   <ChatMessage 
                     key={message.id} 
                     message={message}
-                    isStreaming={isStreaming}
+                    isStreaming={isMessageStreaming}
                   />
                 );
               })}
-              {isLoading && currentConversation.messages.length > 0 && currentConversation.messages[currentConversation.messages.length - 1]?.role === 'user' && (
+              {isLoading && !isStreaming && currentConversation.messages.length > 0 && currentConversation.messages[currentConversation.messages.length - 1]?.role === 'user' && (
                 <div className="loading-message">
                   <div className="loading-indicator">
                     <span className="loading-text">Thinking</span>

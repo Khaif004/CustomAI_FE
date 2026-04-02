@@ -19,6 +19,7 @@ export const useChatbot = () => {
   );
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(
     !!tokenService.getToken(),
@@ -63,7 +64,7 @@ export const useChatbot = () => {
     }
   }, []);
 
-  // Send message
+  // Send message with streaming
   const sendMessage = useCallback(
     async (content: string) => {
       if (!isAuthenticated) {
@@ -71,7 +72,6 @@ export const useChatbot = () => {
         return;
       }
 
-      // Add user message immediately
       const userMessage: ChatMessage = {
         id: Math.random().toString(36).slice(2),
         role: "user",
@@ -79,6 +79,7 @@ export const useChatbot = () => {
         timestamp: new Date(),
       };
 
+      // Add user message immediately
       setConversations((prev) => {
         const updated = [...prev];
         const convIndex = updated.findIndex(
@@ -112,39 +113,82 @@ export const useChatbot = () => {
 
       setIsLoading(true);
       setError(null);
-      abortControllerRef.current = new AbortController();
+
+      const assistantMessageId = Math.random().toString(36).slice(2);
 
       try {
-        const response = await chatApi.sendMessage(
+        await chatApi.streamMessage(
           content,
           currentConversation.messages,
+          (chunk: string) => {
+            // On first chunk, create the assistant message; on subsequent chunks, append
+            setConversations((prev) => {
+              return prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                const existingMsg = c.messages.find(
+                  (m) => m.id === assistantMessageId,
+                );
+                if (!existingMsg) {
+                  // First chunk - add assistant message
+                  setIsStreaming(true);
+                  return {
+                    ...c,
+                    messages: [
+                      ...c.messages,
+                      {
+                        id: assistantMessageId,
+                        role: "assistant" as const,
+                        content: chunk,
+                        timestamp: new Date(),
+                      },
+                    ],
+                    updatedAt: new Date(),
+                  };
+                }
+                // Append chunk to existing message
+                return {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMessageId
+                      ? { ...m, content: m.content + chunk }
+                      : m,
+                  ),
+                };
+              });
+            });
+          },
+          (metadata) => {
+            // Stream done - update metadata
+            setConversations((prev) => {
+              return prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                return {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMessageId
+                      ? {
+                          ...m,
+                          modelUsed: metadata.model,
+                          responseTime: metadata.response_time,
+                        }
+                      : m,
+                  ),
+                };
+              });
+            });
+            setIsStreaming(false);
+            setIsLoading(false);
+          },
+          (errorMsg: string) => {
+            setError(errorMsg);
+            setIsStreaming(false);
+            setIsLoading(false);
+          },
         );
-
-        const assistantMessage: ChatMessage = {
-          id: Math.random().toString(36).slice(2),
-          role: "assistant",
-          content: response.response,
-          timestamp: new Date(),
-          modelUsed: response.model,
-          responseTime: response.response_time,
-        };
-
-        setConversations((prev) => {
-          const updated = [...prev];
-          const convIndex = updated.findIndex(
-            (c) => c.id === currentConversationId,
-          );
-          if (convIndex >= 0) {
-            updated[convIndex].messages.push(assistantMessage);
-            updated[convIndex].updatedAt = new Date();
-          }
-          return updated;
-        });
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to send message";
 
-        // Check if it's a 401 (Unauthorized) error - token expired
         if (err instanceof ApiError && err.status === 401) {
           setIsAuthenticated(false);
           tokenService.clearTokens();
@@ -153,19 +197,20 @@ export const useChatbot = () => {
           setError(message);
         }
 
-        // Remove user message on error
+        // Remove user message and any partial assistant message on error
         setConversations((prev) => {
-          const updated = [...prev];
-          const convIndex = updated.findIndex(
-            (c) => c.id === currentConversationId,
-          );
-          if (convIndex >= 0) {
-            updated[convIndex].messages = updated[convIndex].messages.filter(
-              (m) => m.id !== userMessage.id,
-            );
-          }
-          return updated;
+          return prev.map((c) => {
+            if (c.id !== currentConversationId) return c;
+            return {
+              ...c,
+              messages: c.messages.filter(
+                (m) =>
+                  m.id !== userMessage.id && m.id !== assistantMessageId,
+              ),
+            };
+          });
         });
+        setIsStreaming(false);
       } finally {
         setIsLoading(false);
       }
@@ -213,6 +258,7 @@ export const useChatbot = () => {
     conversations,
     currentConversation,
     isLoading,
+    isStreaming,
     error,
     isAuthenticated,
 
