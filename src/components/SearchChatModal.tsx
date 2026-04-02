@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Modal } from "./Modal";
 import type { Conversation } from "../types/chat";
 import crossIcon from "../assets/crossWhiteIcon.svg";
+import "../styles/SearchChatModal.scss";
 
 interface SearchChatModalProps {
   isOpen: boolean;

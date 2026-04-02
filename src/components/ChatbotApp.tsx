@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
-import "../styles/chatbot.css";
-import "../styles/modal.css";
+import "../styles/ChatbotApp.scss";
+import "../styles/ChatMessage.scss";
+import "../styles/ConversationSidebar.scss";
 
 export const ChatbotApp = () => {
   const {
