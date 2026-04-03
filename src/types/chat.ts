@@ -1,3 +1,9 @@
+export interface FileAttachment {
+  name: string;
+  size: number;
+  type: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -6,6 +12,7 @@ export interface ChatMessage {
   modelUsed?: string;
   responseTime?: number;
   reaction?: 'thumbs-up' | 'thumbs-down' | null;
+  attachment?: FileAttachment;
 }
 
 export interface ChatResponse {

@@ -345,6 +345,12 @@ export const ChatMessage = ({
           </div>
         ) : (
           <>
+            {message.attachment && (
+              <div className="message-attachment">
+                <span className="attachment-icon">📎</span>
+                <span className="attachment-name">{message.attachment.name}</span>
+              </div>
+            )}
             <div className="message-body">
               {message.role === "assistant" && showRaw ? (
                 <pre className="raw-markdown">{displayedText}</pre>

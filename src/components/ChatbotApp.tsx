@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
@@ -6,6 +6,9 @@ import SettingsGearIcon from "../assets/settingsGearIcon.svg?react";
 import AttachIcon from "../assets/attachIcon.svg?react";
 import SendIcon from "../assets/sendIcon.svg?react";
 import StopIcon from "../assets/stopIcon.svg?react";
+import CrossIcon from "../assets/crossIcon.svg?react";
+import AppLogoIcon from "../assets/appLogoIcon.svg?react";
+import SidebarIcon from "../assets/sidebarIcon.svg?react";
 import "../styles/ChatbotApp.scss";
 import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
@@ -18,6 +21,7 @@ export const ChatbotApp = () => {
     isStreaming,
     isAuthenticated,
     sendMessage,
+    sendMessageWithFile,
     newConversation,
     deleteConversation,
     clearAll,
@@ -31,10 +35,43 @@ export const ChatbotApp = () => {
   } = useChatbot();
 
   const [inputValue, setInputValue] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(!isAuthenticated);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const isResizing = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = Math.min(Math.max(e.clientX, 180), 480);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (!isResizing.current) return;
+      isResizing.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
 
   // Auto-authenticate on mount or when token expires
   useEffect(() => {
@@ -71,7 +108,20 @@ export const ChatbotApp = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+    if (isLoading) return;
+
+    if (attachedFile) {
+      const message = inputValue.trim();
+      const file = attachedFile;
+      setInputValue("");
+      setAttachedFile(null);
+      if (textareaRef.current) textareaRef.current.style.height = "24px";
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await sendMessageWithFile(file, message);
+      return;
+    }
+
+    if (!inputValue.trim()) return;
 
     const message = inputValue.trim();
     setInputValue("");
@@ -103,11 +153,27 @@ export const ChatbotApp = () => {
   const handleNewChat = () => {
     newConversation();
     setInputValue("");
+    setAttachedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue(suggestion);
     textareaRef.current?.focus();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAttachedFile(file);
+      textareaRef.current?.focus();
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const suggestions = [
@@ -149,19 +215,31 @@ export const ChatbotApp = () => {
         </div>
       )}
 
-      <ConversationSidebar
-        conversations={conversations}
-        currentId={currentConversation.id}
-        onNewChat={handleNewChat}
-        onSelectConversation={(id: string) => {
-          setCurrentConversationId(id);
-          setSidebarOpen(false);
-        }}
-        onDeleteConversation={deleteConversation}
-        onClearAll={clearAll}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-      />
+      {sidebarOpen ? (
+        <>
+          <ConversationSidebar
+            conversations={conversations}
+            currentId={currentConversation.id}
+            onNewChat={handleNewChat}
+            onSelectConversation={(id: string) => {
+              setCurrentConversationId(id);
+            }}
+            onDeleteConversation={deleteConversation}
+            onClearAll={clearAll}
+            isOpen={sidebarOpen}
+            onToggle={() => setSidebarOpen(false)}
+            width={sidebarWidth}
+          />
+
+          <div className="sidebar-resize-handle" onMouseDown={handleMouseDown} />
+        </>
+      ) : (
+        <div className="sidebar-collapsed">
+          <button className="sidebar-open-btn" onClick={() => setSidebarOpen(true)} title="Open sidebar">
+            <AppLogoIcon />
+          </button>
+        </div>
+      )}
 
       <div className="chat-main">
         <div className="chat-header">
@@ -233,7 +311,33 @@ export const ChatbotApp = () => {
 
         <div className="input-area">
           <div className="input-wrapper">
+            {attachedFile && (
+              <div className="attached-file-preview">
+                <div className="file-chip">
+                  <span className="file-chip-icon">📎</span>
+                  <span className="file-chip-name">{attachedFile.name}</span>
+                  <span className="file-chip-size">{formatFileSize(attachedFile.size)}</span>
+                  <button
+                    className="file-chip-remove"
+                    onClick={() => {
+                      setAttachedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    title="Remove file"
+                  >
+                    <CrossIcon width={12} height={12} />
+                  </button>
+                </div>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="file-input-hidden"
+                onChange={handleFileSelect}
+                accept=".pdf,.docx,.xlsx,.xls,.csv,.json,.txt,.md,.py,.js,.ts,.java,.html,.css,.xml,.yaml,.yml,.sql,.sh,.bat,.log,.env,.cfg,.ini"
+              />
               <div className="input-container">
                 <textarea
                   ref={textareaRef}
@@ -241,7 +345,7 @@ export const ChatbotApp = () => {
                   value={inputValue}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Message AI..."
+                  placeholder={attachedFile ? "Add a message about this file (optional)..." : "Message AI..."}
                   rows={1}
                   disabled={isLoading}
                 />
@@ -250,6 +354,7 @@ export const ChatbotApp = () => {
                     type="button"
                     className="attach-btn"
                     title="Attach file"
+                    onClick={() => fileInputRef.current?.click()}
                   >
                     <AttachIcon />
                   </button>
@@ -266,7 +371,7 @@ export const ChatbotApp = () => {
                     <button
                       type="submit"
                       className="send-btn"
-                      disabled={!inputValue.trim() || isLoading}
+                      disabled={(!inputValue.trim() && !attachedFile) || isLoading}
                       title="Send message"
                     >
                       <SendIcon />

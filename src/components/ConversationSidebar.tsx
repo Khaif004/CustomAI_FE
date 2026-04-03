@@ -6,6 +6,7 @@ import MoreDotsIcon from "../assets/moreDotsIcon.svg?react";
 import EditIcon from "../assets/editIcon.svg?react";
 import PinIcon from "../assets/pinIcon.svg?react";
 import DeleteIcon from "../assets/deleteIcon.svg?react";
+import SidebarIcon from "../assets/sidebarIcon.svg?react";
 import { SearchChatModal } from "./SearchChatModal";
 
 interface ConversationSidebarProps {
@@ -17,6 +18,7 @@ interface ConversationSidebarProps {
   onToggle: () => void;
   onDeleteConversation: (id: string) => void;
   onClearAll: () => void;
+  width?: number;
 }
 
 export const ConversationSidebar = ({
@@ -25,7 +27,9 @@ export const ConversationSidebar = ({
   onNewChat,
   onSelectConversation,
   isOpen,
+  onToggle,
   onDeleteConversation,
+  width,
 }: ConversationSidebarProps) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -70,13 +74,18 @@ export const ConversationSidebar = ({
   };
 
   return (
-    <aside className={`sidebar ${isOpen ? "open" : ""}`}>
+    <aside className={`sidebar ${isOpen ? "open" : ""}`} style={width ? { width: `${width}px` } : undefined}>
       <div className="sidebar-header">
-        <div className="sidebar-icon-menu">
+        <div className="sidebar-header-top">
           <a className="icon-menu-item" onClick={onNewChat} title="New chat">
             <img src={newWhiteIcon} alt="New chat" />
             <span>New chat</span>
           </a>
+          <button className="sidebar-collapse-btn" onClick={onToggle} title="Close sidebar">
+            <SidebarIcon />
+          </button>
+        </div>
+        <div className="sidebar-icon-menu">
           <a className="icon-menu-item" onClick={() => setIsSearchModalOpen(true)} title="Search chats">
             <img src={searchWhiteIcon} alt="Search" />
             <span>Search chats</span>

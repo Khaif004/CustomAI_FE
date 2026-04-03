@@ -168,6 +168,69 @@ export const chatApi = {
       body: JSON.stringify({ documents }),
     });
   },
+
+  uploadFile: async (
+    file: File,
+    message: string,
+    conversationHistory: any[],
+    onChunk: (chunk: string) => void,
+    onDone: (metadata: { model?: string; response_time?: number }) => void,
+    onError: (error: string) => void,
+    onFileInfo?: (info: { filename: string; size: number; truncated: boolean }) => void,
+    signal?: AbortSignal,
+  ) => {
+    const token = tokenService.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('message', message);
+    formData.append('conversation_history', JSON.stringify(conversationHistory));
+
+    const response = await fetch(`${API_BASE_URL}/api/chat/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Upload error' }));
+      throw new ApiError(response.status, error.detail || 'Upload error');
+    }
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'file_info' && onFileInfo) {
+              onFileInfo({ filename: data.filename, size: data.size, truncated: data.truncated });
+            } else if (data.type === 'chunk') {
+              onChunk(data.content);
+            } else if (data.type === 'done') {
+              onDone({ model: data.model, response_time: data.response_time });
+            } else if (data.type === 'error') {
+              onError(data.message);
+            }
+          } catch {
+          }
+        }
+      }
+    }
+  },
 };
 
 export const healthApi = {

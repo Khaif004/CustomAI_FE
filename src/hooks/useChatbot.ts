@@ -251,6 +251,160 @@ export const useChatbot = () => {
     }
   }, []);
 
+  // Send message with file attachment
+  const sendMessageWithFile = useCallback(
+    async (file: File, message: string) => {
+      if (!isAuthenticated) {
+        setError("Not authenticated");
+        return;
+      }
+
+      const displayMessage = message.trim() || `Analyze this file: ${file.name}`;
+      const userMessage: ChatMessage = {
+        id: Math.random().toString(36).slice(2),
+        role: "user",
+        content: displayMessage,
+        timestamp: new Date(),
+        attachment: { name: file.name, size: file.size, type: file.type },
+      };
+
+      setConversations((prev) => {
+        const updated = [...prev];
+        const convIndex = updated.findIndex(
+          (c) => c.id === currentConversationId,
+        );
+        if (convIndex >= 0) {
+          updated[convIndex].messages.push(userMessage);
+          updated[convIndex].updatedAt = new Date();
+        } else {
+          updated.push({ ...currentConversation, messages: [userMessage] });
+        }
+        return updated;
+      });
+
+      if (currentConversation.messages.length === 0) {
+        const title = `📎 ${file.name}`;
+        setConversations((prev) => {
+          const updated = [...prev];
+          const convIndex = updated.findIndex(
+            (c) => c.id === currentConversationId,
+          );
+          if (convIndex >= 0) updated[convIndex].title = title;
+          return updated;
+        });
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      const assistantMessageId = Math.random().toString(36).slice(2);
+      abortControllerRef.current = new AbortController();
+
+      try {
+        await chatApi.uploadFile(
+          file,
+          message,
+          currentConversation.messages,
+          (chunk: string) => {
+            setConversations((prev) => {
+              return prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                const existingMsg = c.messages.find(
+                  (m) => m.id === assistantMessageId,
+                );
+                if (!existingMsg) {
+                  setIsStreaming(true);
+                  return {
+                    ...c,
+                    messages: [
+                      ...c.messages,
+                      {
+                        id: assistantMessageId,
+                        role: "assistant" as const,
+                        content: chunk,
+                        timestamp: new Date(),
+                      },
+                    ],
+                    updatedAt: new Date(),
+                  };
+                }
+                return {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMessageId
+                      ? { ...m, content: m.content + chunk }
+                      : m,
+                  ),
+                };
+              });
+            });
+          },
+          (metadata) => {
+            setConversations((prev) => {
+              return prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                return {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMessageId
+                      ? {
+                          ...m,
+                          modelUsed: metadata.model,
+                          responseTime: metadata.response_time,
+                        }
+                      : m,
+                  ),
+                };
+              });
+            });
+            setIsStreaming(false);
+            setIsLoading(false);
+          },
+          (errorMsg: string) => {
+            setError(errorMsg);
+            setIsStreaming(false);
+            setIsLoading(false);
+          },
+          undefined,
+          abortControllerRef.current?.signal,
+        );
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setIsStreaming(false);
+          setIsLoading(false);
+          return;
+        }
+        const errMessage =
+          err instanceof Error ? err.message : "Failed to upload file";
+
+        if (err instanceof ApiError && err.status === 401) {
+          setIsAuthenticated(false);
+          tokenService.clearTokens();
+          setError("Your session has expired. Please sign in again.");
+        } else {
+          setError(errMessage);
+        }
+
+        setConversations((prev) => {
+          return prev.map((c) => {
+            if (c.id !== currentConversationId) return c;
+            return {
+              ...c,
+              messages: c.messages.filter(
+                (m) =>
+                  m.id !== userMessage.id && m.id !== assistantMessageId,
+              ),
+            };
+          });
+        });
+        setIsStreaming(false);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentConversationId, isAuthenticated, currentConversation],
+  );
+
   const editMessage = useCallback(
     async (messageId: string, newContent: string) => {
       const msgIndex = currentConversation.messages.findIndex(
@@ -332,6 +486,7 @@ export const useChatbot = () => {
 
     authenticate,
     sendMessage,
+    sendMessageWithFile,
     newConversation,
     deleteConversation,
     clearAll,
