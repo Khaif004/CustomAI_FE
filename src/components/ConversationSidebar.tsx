@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { Conversation } from "../types/chat";
-import newWhiteIcon from "../assets/newWhiteIcon.svg";
-import searchWhiteIcon from "../assets/searchWhiteIcon.svg";
+import NewChatIcon from "../assets/newWhiteIcon.svg?react";
+import SearchIcon from "../assets/searchWhiteIcon.svg?react";
 import MoreDotsIcon from "../assets/moreDotsIcon.svg?react";
 import EditIcon from "../assets/editIcon.svg?react";
 import PinIcon from "../assets/pinIcon.svg?react";
@@ -78,7 +78,7 @@ export const ConversationSidebar = ({
       <div className="sidebar-header">
         <div className="sidebar-header-top">
           <a className="icon-menu-item" onClick={onNewChat} title="New chat">
-            <img src={newWhiteIcon} alt="New chat" />
+            <NewChatIcon />
             <span>New chat</span>
           </a>
           <button className="sidebar-collapse-btn" onClick={onToggle} title="Close sidebar">
@@ -87,7 +87,7 @@ export const ConversationSidebar = ({
         </div>
         <div className="sidebar-icon-menu">
           <a className="icon-menu-item" onClick={() => setIsSearchModalOpen(true)} title="Search chats">
-            <img src={searchWhiteIcon} alt="Search" />
+            <SearchIcon />
             <span>Search chats</span>
           </a>
         </div>

@@ -9,6 +9,8 @@ import StopIcon from "../assets/stopIcon.svg?react";
 import CrossIcon from "../assets/crossIcon.svg?react";
 import AppLogoIcon from "../assets/appLogoIcon.svg?react";
 import SidebarIcon from "../assets/sidebarIcon.svg?react";
+import SunIcon from "../assets/sunIcon.svg?react";
+import MoonIcon from "../assets/moonIcon.svg?react";
 import "../styles/ChatbotApp.scss";
 import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
@@ -39,6 +41,11 @@ export const ChatbotApp = () => {
   const [showAuthPrompt, setShowAuthPrompt] = useState(!isAuthenticated);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "light" || saved === "dark") return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const isResizing = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +78,15 @@ export const ChatbotApp = () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
   // Auto-authenticate on mount or when token expires
@@ -247,6 +263,9 @@ export const ChatbotApp = () => {
             {currentConversation.title || "New Chat"}
           </div>
           <div className="chat-actions">
+            <button className="icon-btn theme-toggle" onClick={toggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            </button>
             <button className="icon-btn" title="Settings">
               <SettingsGearIcon />
             </button>

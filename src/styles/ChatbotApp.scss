@@ -153,6 +153,14 @@
     color: var(--text-primary);
   }
 
+  &.theme-toggle svg {
+    transition: transform var(--transition-base);
+  }
+
+  &.theme-toggle:hover svg {
+    transform: rotate(30deg);
+  }
+
   svg {
     width: 1.125rem;
     height: 1.125rem;

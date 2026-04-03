@@ -1,7 +1,4 @@
-// Design tokens & CSS custom properties
-
 :root {
-  // Colors - Light mode
   --bg-primary: #ffffff;
   --bg-secondary: #f9f9f9;
   --bg-tertiary: #ececec;
@@ -42,39 +39,50 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 
+  --radius-full: 624.9375rem;
+
   --transition-fast: 0.15s ease;
   --transition-base: 0.2s ease;
   --transition-slow: 0.3s ease;
 }
 
+
+@mixin dark-theme {
+  --bg-primary: #212121;
+  --bg-secondary: #2f2f2f;
+  --bg-tertiary: #3a3a3a;
+  --bg-sidebar: #171717;
+  --bg-hover: #2f2f2f;
+  --bg-active: #3a3a3a;
+
+  --text-primary: #ececf1;
+  --text-secondary: #c5c5d2;
+  --text-tertiary: #9b9ba5;
+  --text-placeholder: #6e6e80;
+
+  --border-light: #3a3a3a;
+  --border-medium: #4a4a4a;
+  --border-dark: #565656;
+
+  --accent-primary: #19c37d;
+  --accent-hover: #1aa874;
+  --accent-light: #1a3a30;
+
+  --error: #f87171;
+  --warning: #fbbf24;
+  --success: #34d399;
+
+  --shadow-sm: 0 0.0625rem 0.125rem 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 0.625rem 0.9375rem -0.1875rem rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme="dark"] {
+  @include dark-theme;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary: #212121;
-    --bg-secondary: #2f2f2f;
-    --bg-tertiary: #3a3a3a;
-    --bg-sidebar: #171717;
-    --bg-hover: #2f2f2f;
-    --bg-active: #3a3a3a;
-
-    --text-primary: #ececf1;
-    --text-secondary: #c5c5d2;
-    --text-tertiary: #9b9ba5;
-    --text-placeholder: #6e6e80;
-
-    --border-light: #3a3a3a;
-    --border-medium: #4a4a4a;
-    --border-dark: #565656;
-
-    --accent-primary: #19c37d;
-    --accent-hover: #1aa874;
-    --accent-light: #1a3a30;
-
-    --error: #f87171;
-    --warning: #fbbf24;
-    --success: #34d399;
-
-    --shadow-sm: 0 0.0625rem 0.125rem 0 rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 0.625rem 0.9375rem -0.1875rem rgba(0, 0, 0, 0.5);
+  :root:not([data-theme="light"]) {
+    @include dark-theme;
   }
 }

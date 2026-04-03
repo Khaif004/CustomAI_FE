@@ -55,7 +55,7 @@
   transition: all var(--transition-fast);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--bg-hover);
     color: var(--text-primary);
   }
 
@@ -94,7 +94,7 @@
   transition: all var(--transition-fast);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--bg-hover);
     color: var(--text-primary);
     transform: scale(1.05);
   }
@@ -128,24 +128,24 @@
   transition: all var(--transition-base);
   background: transparent;
   border: none;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--bg-hover);
   }
 
   &:active {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--bg-active);
   }
 
-  img {
+  svg {
     width: 1.25rem;
     height: 1.25rem;
-    object-fit: contain;
     flex-shrink: 0;
+    color: currentColor;
   }
 }
 
