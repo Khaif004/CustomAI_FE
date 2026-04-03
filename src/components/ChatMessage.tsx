@@ -1,20 +1,37 @@
 import React, { useState, useEffect, useRef } from "react";
 import type { ChatMessage as ChatMessageType } from "../types/chat";
-import copyIcon from "../assets/copyIcon.svg";
-import tickIcon from "../assets/tickIcon.svg";
+import CopyIcon from "../assets/copyIcon.svg?react";
+import TickIcon from "../assets/tickIcon.svg?react";
+import EditIcon from "../assets/editIcon.svg?react";
+import MarkdownIcon from "../assets/markdownIcon.svg?react";
+import RegenerateIcon from "../assets/regenerateIcon.svg?react";
+import ThumbsUpIcon from "../assets/thumbsUpIcon.svg?react";
+import ThumbsDownIcon from "../assets/thumbsDownIcon.svg?react";
 import hljs from "highlight.js";
 import "highlight.js/styles/vs2015.css";
 
 interface ChatMessageProps {
   message: ChatMessageType;
   isStreaming?: boolean;
+  isLastAssistant?: boolean;
+  onEdit?: (messageId: string, newContent: string) => void;
+  onRegenerate?: () => void;
+  onReact?: (messageId: string, reaction: "thumbs-up" | "thumbs-down" | null) => void;
 }
 
 export const ChatMessage = ({
   message,
   isStreaming = false,
+  isLastAssistant = false,
+  onEdit,
+  onRegenerate,
+  onReact,
 }: ChatMessageProps) => {
   const displayedText = message.content;
+  const [showRaw, setShowRaw] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content);
+  const editRef = useRef<HTMLTextAreaElement>(null);
 
   const formatTime = (timestamp: Date) => {
     const date = new Date(timestamp);
@@ -135,19 +152,16 @@ export const ChatMessage = ({
     };
 
     lines.forEach((line, index) => {
-      // Code blocks
       if (line.startsWith("```")) {
         flushList();
         flushTable();
         return;
       }
 
-      // Table separator row (|---|---|) - skip it
       if (/^\|[\s\-:|]+\|$/.test(line.trim())) {
         return;
       }
 
-      // Table row
       if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
         flushList();
         const cells = line.trim().slice(1, -1).split("|");
@@ -155,17 +169,14 @@ export const ChatMessage = ({
         return;
       }
 
-      // Not a table row - flush any pending table
       flushTable();
 
-      // Horizontal rule
       if (/^---+$/.test(line.trim())) {
         flushList();
         elements.push(<hr key={index} />);
         return;
       }
 
-      // Headers
       if (line.startsWith("### ")) {
         flushList();
         elements.push(<h5 key={index}>{formatInline(line.slice(4))}</h5>);
@@ -182,7 +193,6 @@ export const ChatMessage = ({
         return;
       }
 
-      // Unordered lists (- item or * item)
       const ulMatch = line.match(/^[\*\-]\s+(.*)/);
       if (ulMatch) {
         if (!inList || listType !== "ul") {
@@ -194,7 +204,6 @@ export const ChatMessage = ({
         return;
       }
 
-      // Ordered lists (1. item)
       const olMatch = line.match(/^\d+\.\s+(.*)/);
       if (olMatch) {
         if (!inList || listType !== "ol") {
@@ -206,18 +215,15 @@ export const ChatMessage = ({
         return;
       }
 
-      // Regular paragraph
       if (line.trim()) {
         flushList();
         elements.push(<p key={index}>{formatInline(line)}</p>);
         return;
       }
 
-      // Empty line - flush any pending list
       flushList();
     });
 
-    // Flush any remaining list and table
     flushList();
     flushTable();
 
@@ -262,11 +268,11 @@ export const ChatMessage = ({
           >
             {copied ? (
               <>
-                <img src={tickIcon} alt="Copied" width={14} height={14} />
+                <TickIcon width={14} height={14} />
                 Copied
               </>
             ) : (
-              <img src={copyIcon} alt="Copy" />
+              <CopyIcon width={14} height={14} />
             )}
           </button>
         </div>
@@ -285,40 +291,137 @@ export const ChatMessage = ({
     setTimeout(() => setCopiedMessage(false), 2000);
   };
 
+  const handleStartEdit = () => {
+    setEditContent(message.content);
+    setIsEditing(true);
+    setTimeout(() => editRef.current?.focus(), 0);
+  };
+
+  const handleSaveEdit = () => {
+    if (editContent.trim() && editContent !== message.content && onEdit) {
+      onEdit(message.id, editContent.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditContent(message.content);
+    setIsEditing(false);
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSaveEdit();
+    }
+    if (e.key === "Escape") {
+      handleCancelEdit();
+    }
+  };
+
   const isCodeBlock = displayedText.includes("```");
 
   return (
     <div className={`message ${message.role}`}>
       <div className="message-content">
-        <div className="message-body">
-          {isCodeBlock
-            ? displayedText.split("```").map((block: string, index: number) => {
-                if (index % 2 === 0) {
-                  return <div key={index}>{formatContent(block)}</div>;
-                }
-                const lines = block.split("\n");
-                const language = lines[0]?.trim() || "";
-                const code = lines.slice(1).join("\n");
-                return (
-                  <CodeBlock key={index} language={language} code={code} />
-                );
-              })
-            : formatContent(displayedText)}
-        </div>
-        <div className="message-actions">
-          <button className="message-action-btn" title="Copy" onClick={handleCopyMessage}>
-            {copiedMessage ? (
-              <>
-                <img src={tickIcon} alt="Copied" width={20} height={20} />
-                Copied
-              </>
-            ) : (
-              <>
-                <img src={copyIcon} alt="Copy" />
-              </>
-            )}
-          </button>
-        </div>
+        {message.role === "user" && isEditing ? (
+          <div className="edit-mode">
+            <textarea
+              ref={editRef}
+              className="edit-textarea"
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              onKeyDown={handleEditKeyDown}
+              rows={3}
+            />
+            <div className="edit-actions">
+              <button className="edit-save-btn" onClick={handleSaveEdit}>
+                Save & Submit
+              </button>
+              <button className="edit-cancel-btn" onClick={handleCancelEdit}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="message-body">
+              {message.role === "assistant" && showRaw ? (
+                <pre className="raw-markdown">{displayedText}</pre>
+              ) : isCodeBlock ? (
+                displayedText.split("```").map((block: string, index: number) => {
+                  if (index % 2 === 0) {
+                    return <div key={index}>{formatContent(block)}</div>;
+                  }
+                  const lines = block.split("\n");
+                  const language = lines[0]?.trim() || "";
+                  const code = lines.slice(1).join("\n");
+                  return (
+                    <CodeBlock key={index} language={language} code={code} />
+                  );
+                })
+              ) : (
+                formatContent(displayedText)
+              )}
+            </div>
+            <div className="message-actions">
+              <button className="message-action-btn" title="Copy" onClick={handleCopyMessage}>
+                {copiedMessage ? (
+                  <>
+                    <TickIcon width={14} height={14} />
+                    Copied
+                  </>
+                ) : (
+                  <CopyIcon width={14} height={14} />
+                )}
+              </button>
+
+              {message.role === "user" && onEdit && (
+                <button className="message-action-btn" title="Edit message" onClick={handleStartEdit}>
+                  <EditIcon width={14} height={14} />
+                </button>
+              )}
+
+              {/* Markdown toggle - assistant messages only */}
+              {message.role === "assistant" && (
+                <button
+                  className={`message-action-btn ${showRaw ? "active" : ""}`}
+                  title={showRaw ? "Show rendered" : "Show raw markdown"}
+                  onClick={() => setShowRaw(!showRaw)}
+                >
+                  <MarkdownIcon width={14} height={14} />
+                </button>
+              )}
+
+              {/* Regenerate - last assistant message only */}
+              {message.role === "assistant" && isLastAssistant && onRegenerate && !isStreaming && (
+                <button className="message-action-btn" title="Regenerate response" onClick={onRegenerate}>
+                  <RegenerateIcon width={14} height={14} />
+                </button>
+              )}
+
+              {/* Reactions - assistant messages only */}
+              {message.role === "assistant" && onReact && (
+                <div className="reaction-buttons">
+                  <button
+                    className={`message-action-btn ${message.reaction === "thumbs-up" ? "reaction-active" : ""}`}
+                    title="Good response"
+                    onClick={() => onReact(message.id, "thumbs-up")}
+                  >
+                    <ThumbsUpIcon width={14} height={14} />
+                  </button>
+                  <button
+                    className={`message-action-btn ${message.reaction === "thumbs-down" ? "reaction-active" : ""}`}
+                    title="Bad response"
+                    onClick={() => onReact(message.id, "thumbs-down")}
+                  >
+                    <ThumbsDownIcon width={14} height={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

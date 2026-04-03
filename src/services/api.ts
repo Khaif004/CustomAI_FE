@@ -111,6 +111,7 @@ export const chatApi = {
     onChunk: (chunk: string) => void,
     onDone: (metadata: { model?: string; response_time?: number }) => void,
     onError: (error: string) => void,
+    signal?: AbortSignal,
   ) => {
     const token = tokenService.getToken();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -123,6 +124,7 @@ export const chatApi = {
         message,
         conversation_history: conversationHistory,
       }),
+      signal,
     });
 
     if (!response.ok) {

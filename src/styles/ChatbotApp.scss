@@ -435,7 +435,73 @@
   animation: blink 0.7s infinite;
 }
 
-// Responsive
+.stop-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-md);
+  background: var(--error);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+
+  &:hover {
+    background: #dc2626;
+    transform: scale(1.05);
+  }
+
+  svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    fill: currentColor;
+    stroke: none;
+  }
+}
+
+.export-wrapper {
+  position: relative;
+}
+
+.export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--bg-secondary);
+  border: 0.0625rem solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 10rem;
+  z-index: 100;
+  overflow: hidden;
+  animation: fadeIn 0.15s ease;
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: var(--bg-hover);
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+  }
+}
+
 @media (max-width: 48rem) {
   .messages-wrapper {
     padding: 1rem 1rem 3.75rem;

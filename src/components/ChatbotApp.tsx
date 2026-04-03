@@ -2,6 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
+import SettingsGearIcon from "../assets/settingsGearIcon.svg?react";
+import AttachIcon from "../assets/attachIcon.svg?react";
+import SendIcon from "../assets/sendIcon.svg?react";
+import StopIcon from "../assets/stopIcon.svg?react";
 import "../styles/ChatbotApp.scss";
 import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
@@ -20,6 +24,10 @@ export const ChatbotApp = () => {
     setCurrentConversationId,
     authenticate,
     error,
+    stopGenerating,
+    editMessage,
+    regenerateLastResponse,
+    reactToMessage,
   } = useChatbot();
 
   const [inputValue, setInputValue] = useState("");
@@ -162,17 +170,7 @@ export const ChatbotApp = () => {
           </div>
           <div className="chat-actions">
             <button className="icon-btn" title="Settings">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-              </svg>
+              <SettingsGearIcon />
             </button>
           </div>
         </div>
@@ -204,11 +202,20 @@ export const ChatbotApp = () => {
               {currentConversation.messages.map((message: any, index: number) => {
                 const isLastMessage = index === currentConversation.messages.length - 1;
                 const isMessageStreaming = isLastMessage && isStreaming && message.role === 'assistant';
+                // Find the last assistant message index
+                const lastAssistantIdx = currentConversation.messages.findLastIndex(
+                  (m: any) => m.role === 'assistant',
+                );
+                const isLastAssistant = index === lastAssistantIdx;
                 return (
                   <ChatMessage 
                     key={message.id} 
                     message={message}
                     isStreaming={isMessageStreaming}
+                    isLastAssistant={isLastAssistant}
+                    onEdit={editMessage}
+                    onRegenerate={regenerateLastResponse}
+                    onReact={reactToMessage}
                   />
                 );
               })}
@@ -244,20 +251,27 @@ export const ChatbotApp = () => {
                     className="attach-btn"
                     title="Attach file"
                   >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-                    </svg>
+                    <AttachIcon />
                   </button>
-                  <button
-                    type="submit"
-                    className="send-btn"
-                    disabled={!inputValue.trim() || isLoading}
-                    title="Send message"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-                    </svg>
-                  </button>
+                  {isStreaming ? (
+                    <button
+                      type="button"
+                      className="stop-btn"
+                      onClick={stopGenerating}
+                      title="Stop generating"
+                    >
+                      <StopIcon />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="send-btn"
+                      disabled={!inputValue.trim() || isLoading}
+                      title="Send message"
+                    >
+                      <SendIcon />
+                    </button>
+                  )}
                 </div>
               </div>
             </form>

@@ -1,4 +1,3 @@
-/*merge changes*/
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ChatMessage, Conversation } from "../types/chat";
 import { chatApi, authApi, tokenService, ApiError } from "../services/api";
@@ -26,7 +25,6 @@ export const useChatbot = () => {
   );
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Get or create current conversation
   const currentConversation = conversations.find(
     (c) => c.id === currentConversationId,
   ) || {
@@ -37,7 +35,6 @@ export const useChatbot = () => {
     updatedAt: new Date(),
   };
 
-  // Save conversations to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
   }, [conversations]);
@@ -46,7 +43,6 @@ export const useChatbot = () => {
     localStorage.setItem("currentConversation", currentConversationId);
   }, [currentConversationId]);
 
-  // Authenticate with dev token
   const authenticate = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -64,7 +60,6 @@ export const useChatbot = () => {
     }
   }, []);
 
-  // Send message with streaming
   const sendMessage = useCallback(
     async (content: string) => {
       if (!isAuthenticated) {
@@ -79,7 +74,6 @@ export const useChatbot = () => {
         timestamp: new Date(),
       };
 
-      // Add user message immediately
       setConversations((prev) => {
         const updated = [...prev];
         const convIndex = updated.findIndex(
@@ -97,7 +91,6 @@ export const useChatbot = () => {
         return updated;
       });
 
-      // Update title if it's the first message
       if (currentConversation.messages.length === 0) {
         const title =
           content.substring(0, 50) + (content.length > 50 ? "..." : "");
@@ -115,13 +108,13 @@ export const useChatbot = () => {
       setError(null);
 
       const assistantMessageId = Math.random().toString(36).slice(2);
+      abortControllerRef.current = new AbortController();
 
       try {
         await chatApi.streamMessage(
           content,
           currentConversation.messages,
           (chunk: string) => {
-            // On first chunk, create the assistant message; on subsequent chunks, append
             setConversations((prev) => {
               return prev.map((c) => {
                 if (c.id !== currentConversationId) return c;
@@ -129,7 +122,6 @@ export const useChatbot = () => {
                   (m) => m.id === assistantMessageId,
                 );
                 if (!existingMsg) {
-                  // First chunk - add assistant message
                   setIsStreaming(true);
                   return {
                     ...c,
@@ -145,7 +137,6 @@ export const useChatbot = () => {
                     updatedAt: new Date(),
                   };
                 }
-                // Append chunk to existing message
                 return {
                   ...c,
                   messages: c.messages.map((m) =>
@@ -158,7 +149,6 @@ export const useChatbot = () => {
             });
           },
           (metadata) => {
-            // Stream done - update metadata
             setConversations((prev) => {
               return prev.map((c) => {
                 if (c.id !== currentConversationId) return c;
@@ -184,8 +174,15 @@ export const useChatbot = () => {
             setIsStreaming(false);
             setIsLoading(false);
           },
+          abortControllerRef.current?.signal,
         );
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setIsStreaming(false);
+          setIsLoading(false);
+          return;
+        }
+
         const message =
           err instanceof Error ? err.message : "Failed to send message";
 
@@ -245,16 +242,87 @@ export const useChatbot = () => {
     }
   }, [newConversation]);
 
-  // Stop generating
   const stopGenerating = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsStreaming(false);
       setIsLoading(false);
     }
   }, []);
 
+  const editMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      const msgIndex = currentConversation.messages.findIndex(
+        (m) => m.id === messageId,
+      );
+      if (msgIndex === -1) return;
+
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== currentConversationId) return c;
+          return {
+            ...c,
+            messages: c.messages.slice(0, msgIndex),
+            updatedAt: new Date(),
+          };
+        }),
+      );
+
+      await sendMessage(newContent);
+    },
+    [currentConversationId, currentConversation, sendMessage],
+  );
+
+  const regenerateLastResponse = useCallback(async () => {
+    const messages = currentConversation.messages;
+    let lastUserMessage: ChatMessage | null = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        lastUserMessage = messages[i];
+        break;
+      }
+    }
+    if (!lastUserMessage) return;
+
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== currentConversationId) return c;
+        const lastAssistantIdx = c.messages.findLastIndex(
+          (m) => m.role === "assistant",
+        );
+        if (lastAssistantIdx === -1) return c;
+        return {
+          ...c,
+          messages: c.messages.filter((_, i) => i !== lastAssistantIdx),
+          updatedAt: new Date(),
+        };
+      }),
+    );
+
+    await sendMessage(lastUserMessage.content);
+  }, [currentConversationId, currentConversation, sendMessage]);
+
+  const reactToMessage = useCallback(
+    (messageId: string, reaction: "thumbs-up" | "thumbs-down" | null) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== currentConversationId) return c;
+          return {
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === messageId
+                ? { ...m, reaction: m.reaction === reaction ? null : reaction }
+                : m,
+            ),
+          };
+        }),
+      );
+    },
+    [currentConversationId],
+  );
+
   return {
-    // State
     conversations,
     currentConversation,
     isLoading,
@@ -262,7 +330,6 @@ export const useChatbot = () => {
     error,
     isAuthenticated,
 
-    // Actions
     authenticate,
     sendMessage,
     newConversation,
@@ -270,5 +337,8 @@ export const useChatbot = () => {
     clearAll,
     stopGenerating,
     setCurrentConversationId,
+    editMessage,
+    regenerateLastResponse,
+    reactToMessage,
   };
 };

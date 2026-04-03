@@ -5,6 +5,7 @@ export interface ChatMessage {
   timestamp: Date;
   modelUsed?: string;
   responseTime?: number;
+  reaction?: 'thumbs-up' | 'thumbs-down' | null;
 }
 
 export interface ChatResponse {
