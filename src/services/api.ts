@@ -169,6 +169,14 @@ export const chatApi = {
     });
   },
 
+  generateTitle: async (message: string): Promise<string> => {
+    const result = await apiCall('/api/chat/generate-title', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+    return result.title;
+  },
+
   uploadFile: async (
     file: File,
     message: string,

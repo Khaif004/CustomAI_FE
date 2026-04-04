@@ -370,6 +370,7 @@ export const ChatMessage = ({
                 formatContent(displayedText)
               )}
             </div>
+            {!isStreaming && (
             <div className="message-actions">
               <button className="message-action-btn" title="Copy" onClick={handleCopyMessage}>
                 {copiedMessage ? (
@@ -426,6 +427,7 @@ export const ChatMessage = ({
                 </div>
               )}
             </div>
+            )}
           </>
         )}
       </div>

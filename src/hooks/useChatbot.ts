@@ -92,16 +92,22 @@ export const useChatbot = () => {
       });
 
       if (currentConversation.messages.length === 0) {
-        const title =
-          content.substring(0, 50) + (content.length > 50 ? "..." : "");
+        const tempTitle = content.substring(0, 40).replace(/\s+\S*$/, "") + "...";
+        const convId = currentConversationId;
         setConversations((prev) => {
           const updated = [...prev];
-          const convIndex = updated.findIndex(
-            (c) => c.id === currentConversationId,
-          );
-          if (convIndex >= 0) updated[convIndex].title = title;
+          const convIndex = updated.findIndex((c) => c.id === convId);
+          if (convIndex >= 0) updated[convIndex].title = tempTitle;
           return updated;
         });
+        chatApi.generateTitle(content).then((aiTitle) => {
+          setConversations((prev) => {
+            const updated = [...prev];
+            const convIndex = updated.findIndex((c) => c.id === convId);
+            if (convIndex >= 0) updated[convIndex].title = aiTitle;
+            return updated;
+          });
+        }).catch(() => {});
       }
 
       setIsLoading(true);

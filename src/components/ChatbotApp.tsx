@@ -8,9 +8,9 @@ import SendIcon from "../assets/sendIcon.svg?react";
 import StopIcon from "../assets/stopIcon.svg?react";
 import CrossIcon from "../assets/crossIcon.svg?react";
 import AppLogoIcon from "../assets/appLogoIcon.svg?react";
-import SidebarIcon from "../assets/sidebarIcon.svg?react";
 import SunIcon from "../assets/sunIcon.svg?react";
 import MoonIcon from "../assets/moonIcon.svg?react";
+import ChevronDownIcon from "../assets/chevronDownIcon.svg?react";
 import "../styles/ChatbotApp.scss";
 import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
@@ -41,12 +41,14 @@ export const ChatbotApp = () => {
   const [showAuthPrompt, setShowAuthPrompt] = useState(!isAuthenticated);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("theme");
     if (saved === "light" || saved === "dark") return saved;
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
   const isResizing = useRef(false);
+  const userScrolledUp = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -106,21 +108,50 @@ export const ChatbotApp = () => {
     }
   };
 
-  const scrollToBottom = () => {
-    // Use requestAnimationFrame to ensure DOM has updated
-    requestAnimationFrame(() => {
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const nearBottom = isNearBottom();
+    userScrolledUp.current = !nearBottom;
+    setShowScrollBtn(!nearBottom);
+  }, [isNearBottom]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  const lastMessage = currentConversation.messages[currentConversation.messages.length - 1];
+  useEffect(() => {
+    if (!userScrolledUp.current) {
       const container = messagesContainerRef.current;
       if (container) {
         container.scrollTop = container.scrollHeight;
       }
-    });
-  };
+    }
+  }, [currentConversation.messages.length, isLoading]);
 
-  // Auto-scroll during streaming and on new messages
-  const lastMessage = currentConversation.messages[currentConversation.messages.length - 1];
   useEffect(() => {
-    scrollToBottom();
-  }, [currentConversation.messages, isLoading, lastMessage?.content]);
+    if (isStreaming && !userScrolledUp.current) {
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  }, [lastMessage?.content, isStreaming]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -319,7 +350,7 @@ export const ChatbotApp = () => {
               {isLoading && !isStreaming && currentConversation.messages.length > 0 && currentConversation.messages[currentConversation.messages.length - 1]?.role === 'user' && (
                 <div className="loading-message">
                   <div className="loading-indicator">
-                    <span className="loading-text">Thinking</span>
+                    <span className="loading-text">Analyzing</span>
                     <div className="loading-spinner"></div>
                   </div>
                 </div>
@@ -327,6 +358,20 @@ export const ChatbotApp = () => {
             </div>
           )}
         </div>
+
+        {showScrollBtn && (
+          <button
+            className="scroll-to-bottom-fab"
+            onClick={() => {
+              userScrolledUp.current = false;
+              setShowScrollBtn(false);
+              scrollToBottom();
+            }}
+            title="Scroll to bottom"
+          >
+            <ChevronDownIcon />
+          </button>
+        )}
 
         <div className="input-area">
           <div className="input-wrapper">
