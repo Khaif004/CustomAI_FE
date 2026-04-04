@@ -19,6 +19,7 @@ interface ConversationSidebarProps {
   onDeleteConversation: (id: string) => void;
   onClearAll: () => void;
   width?: number;
+  onLogout?: () => void;
 }
 
 export const ConversationSidebar = ({
@@ -30,6 +31,7 @@ export const ConversationSidebar = ({
   onToggle,
   onDeleteConversation,
   width,
+  onLogout,
 }: ConversationSidebarProps) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -191,6 +193,11 @@ export const ConversationSidebar = ({
             <div className="user-name">User</div>
             <div className="user-status">Free plan</div>
           </div>
+          {onLogout && (
+            <button className="logout-btn" onClick={onLogout} title="Log out">
+              Logout
+            </button>
+          )}
         </div>
       </div>
 

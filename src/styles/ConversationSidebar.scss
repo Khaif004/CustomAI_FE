@@ -345,7 +345,24 @@
   color: var(--text-tertiary);
 }
 
-// Responsive
+.logout-btn {
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 0.0625rem solid var(--border-medium);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--error);
+    color: var(--error);
+  }
+}
+
 @media (max-width: 48rem) {
   .sidebar {
     position: fixed;

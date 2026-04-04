@@ -15,13 +15,23 @@ export class ApiError extends Error {
 export const tokenService = {
   getToken: () => localStorage.getItem('access_token'),
   getRefreshToken: () => localStorage.getItem('refresh_token'),
-  setTokens: (access: string, refresh?: string) => {
+  setTokens: (access: string, refresh?: string, expiresIn?: number) => {
     localStorage.setItem('access_token', access);
     if (refresh) localStorage.setItem('refresh_token', refresh);
+    if (expiresIn) {
+      const expiresAt = Date.now() + expiresIn * 1000;
+      localStorage.setItem('token_expires_at', expiresAt.toString());
+    }
   },
   clearTokens: () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_expires_at');
+  },
+  isTokenExpired: (): boolean => {
+    const expiresAt = localStorage.getItem('token_expires_at');
+    if (!expiresAt) return true;
+    return Date.now() > parseInt(expiresAt, 10) - 30000; // 30s buffer
   },
 };
 
@@ -61,18 +71,16 @@ export const authApi = {
   },
 
   login: async (username: string, password: string): Promise<AuthResponse> => {
-    const formData = new URLSearchParams();
-    formData.append('username', username);
-    formData.append('password', password);
-
-    return fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData,
-    }).then(r => {
-      if (!r.ok) throw new Error('Login failed');
-      return r.json();
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: 'Login failed' }));
+      throw new Error(err.detail || 'Invalid username or password');
+    }
+    return response.json();
   },
 
   refreshToken: async (): Promise<AuthResponse> => {

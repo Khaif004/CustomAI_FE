@@ -43,16 +43,15 @@ export const useChatbot = () => {
     localStorage.setItem("currentConversation", currentConversationId);
   }, [currentConversationId]);
 
-  const authenticate = useCallback(async () => {
+  const login = useCallback(async (username: string, password: string) => {
     try {
       setIsLoading(true);
       setError(null);
-      const result = await authApi.devToken("developer");
-      tokenService.setTokens(result.access_token, result.refresh_token);
+      const result = await authApi.login(username, password);
+      tokenService.setTokens(result.access_token, result.refresh_token, result.expires_in);
       setIsAuthenticated(true);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Authentication failed";
+      const message = err instanceof Error ? err.message : "Invalid username or password";
       setError(message);
       throw err;
     } finally {
@@ -60,9 +59,61 @@ export const useChatbot = () => {
     }
   }, []);
 
+  const logout = useCallback(() => {
+    tokenService.clearTokens();
+    setIsAuthenticated(false);
+  }, []);
+
+  const refreshAuth = useCallback(async (): Promise<boolean> => {
+    try {
+      const result = await authApi.refreshToken();
+      tokenService.setTokens(result.access_token, result.refresh_token, result.expires_in);
+      setIsAuthenticated(true);
+      return true;
+    } catch {
+      tokenService.clearTokens();
+      setIsAuthenticated(false);
+      setError("Session expired. Please log in again.");
+      return false;
+    }
+  }, []);
+
+  const ensureAuth = useCallback(async (): Promise<boolean> => {
+    if (!tokenService.getToken()) {
+      setIsAuthenticated(false);
+      return false;
+    }
+    if (tokenService.isTokenExpired()) {
+      if (tokenService.getRefreshToken()) {
+        return await refreshAuth();
+      }
+      tokenService.clearTokens();
+      setIsAuthenticated(false);
+      setError("Session expired. Please log in again.");
+      return false;
+    }
+    return true;
+  }, [refreshAuth]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      if (tokenService.isTokenExpired()) {
+        if (tokenService.getRefreshToken()) {
+          refreshAuth();
+        } else {
+          tokenService.clearTokens();
+          setIsAuthenticated(false);
+          setError("Session expired. Please log in again.");
+        }
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, refreshAuth]);
+
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!isAuthenticated) {
+      if (!(await ensureAuth())) {
         setError("Not authenticated");
         return;
       }
@@ -260,8 +311,8 @@ export const useChatbot = () => {
   // Send message with file attachment
   const sendMessageWithFile = useCallback(
     async (file: File, message: string) => {
-      if (!isAuthenticated) {
-        setError("Not authenticated");
+      if (!(await ensureAuth())) {
+        setError("Session expired. Please log in again.");
         return;
       }
 
@@ -490,7 +541,8 @@ export const useChatbot = () => {
     error,
     isAuthenticated,
 
-    authenticate,
+    login,
+    logout,
     sendMessage,
     sendMessageWithFile,
     newConversation,

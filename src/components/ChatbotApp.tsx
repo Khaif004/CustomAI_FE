@@ -28,7 +28,8 @@ export const ChatbotApp = () => {
     deleteConversation,
     clearAll,
     setCurrentConversationId,
-    authenticate,
+    login,
+    logout,
     error,
     stopGenerating,
     editMessage,
@@ -38,6 +39,9 @@ export const ChatbotApp = () => {
 
   const [inputValue, setInputValue] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [showAuthPrompt, setShowAuthPrompt] = useState(!isAuthenticated);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
@@ -98,13 +102,21 @@ export const ChatbotApp = () => {
     }
   }, [isAuthenticated]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    if (!loginUsername.trim() || !loginPassword.trim()) {
+      setLoginError("Please enter username and password");
+      return;
+    }
     try {
-      await authenticate();
+      await login(loginUsername.trim(), loginPassword.trim());
       setShowAuthPrompt(false);
+      setLoginUsername("");
+      setLoginPassword("");
+      setLoginError("");
     } catch (err) {
-      console.error("Login failed:", err);
-      // Error from authenticate hook will be shown in the modal
+      setLoginError(err instanceof Error ? err.message : "Login failed");
     }
   };
 
@@ -252,12 +264,39 @@ export const ChatbotApp = () => {
               <h1>Welcome to ChatBot</h1>
             </div>
             <p className="auth-description">
-              Sign in to start chatting and access your conversation history.
+              {error && error.includes("expired")
+                ? "Your session has expired. Please log in again."
+                : "Sign in to start chatting and access your conversation history."}
             </p>
-            <button className="auth-button" onClick={handleLogin}>
-              Sign In
-            </button>
-            {error && <div className="auth-error">{error}</div>}
+            <form className="auth-form" onSubmit={handleLogin}>
+              <div className="auth-field">
+                <label htmlFor="login-username">Username</label>
+                <input
+                  id="login-username"
+                  type="text"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  autoComplete="username"
+                  autoFocus
+                />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="login-password">Password</label>
+                <input
+                  id="login-password"
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                />
+              </div>
+              {loginError && <div className="auth-error">{loginError}</div>}
+              <button type="submit" className="auth-button" disabled={isLoading}>
+                {isLoading ? "Signing in..." : "Sign In"}
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -276,6 +315,7 @@ export const ChatbotApp = () => {
             isOpen={sidebarOpen}
             onToggle={() => setSidebarOpen(false)}
             width={sidebarWidth}
+            onLogout={logout}
           />
 
           <div className="sidebar-resize-handle" onMouseDown={handleMouseDown} />
