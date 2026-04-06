@@ -33,23 +33,6 @@ export const ChatMessage = ({
   const [editContent, setEditContent] = useState(message.content);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
-  const formatTime = (timestamp: Date) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 60) return "Just now";
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400)
-      return `${Math.floor(diffInSeconds / 3600)}h ago`;
-
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
   const formatInline = (text: string): (string | React.JSX.Element)[] => {
     const parts: (string | React.JSX.Element)[] = [];
     let remaining = text;
@@ -361,7 +344,7 @@ export const ChatMessage = ({
                   }
                   const lines = block.split("\n");
                   const language = lines[0]?.trim() || "";
-                  const code = lines.slice(1).join("\n");
+                  const code = lines.slice(1).join("\n").replace(/\n+$/, '');
                   return (
                     <CodeBlock key={index} language={language} code={code} />
                   );
