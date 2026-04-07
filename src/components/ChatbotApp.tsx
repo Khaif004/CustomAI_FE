@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
+import { navigate } from "./Router";
 import SettingsGearIcon from "../assets/settingsGearIcon.svg?react";
 import AttachIcon from "../assets/attachIcon.svg?react";
 import SendIcon from "../assets/sendIcon.svg?react";
@@ -28,9 +29,7 @@ export const ChatbotApp = () => {
     deleteConversation,
     clearAll,
     setCurrentConversationId,
-    login,
     logout,
-    error,
     stopGenerating,
     editMessage,
     regenerateLastResponse,
@@ -39,10 +38,6 @@ export const ChatbotApp = () => {
 
   const [inputValue, setInputValue] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [loginUsername, setLoginUsername] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [showAuthPrompt, setShowAuthPrompt] = useState(!isAuthenticated);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -95,30 +90,14 @@ export const ChatbotApp = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
-  // Auto-authenticate on mount or when token expires
+  // Redirect to login if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      setShowAuthPrompt(true);
+      navigate('/login');
     }
   }, [isAuthenticated]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError("");
-    if (!loginUsername.trim() || !loginPassword.trim()) {
-      setLoginError("Please enter username and password");
-      return;
-    }
-    try {
-      await login(loginUsername.trim(), loginPassword.trim());
-      setShowAuthPrompt(false);
-      setLoginUsername("");
-      setLoginPassword("");
-      setLoginError("");
-    } catch (err) {
-      setLoginError(err instanceof Error ? err.message : "Login failed");
-    }
-  };
+
 
   const isNearBottom = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -256,51 +235,6 @@ export const ChatbotApp = () => {
 
   return (
     <div className="chatbot-app">
-      {showAuthPrompt && (
-        <div className="auth-overlay">
-          <div className="auth-modal">
-            <div className="auth-header">
-              <div className="auth-icon">AI</div>
-              <h1>Welcome to ChatBot</h1>
-            </div>
-            <p className="auth-description">
-              {error && error.includes("expired")
-                ? "Your session has expired. Please log in again."
-                : "Sign in to start chatting and access your conversation history."}
-            </p>
-            <form className="auth-form" onSubmit={handleLogin}>
-              <div className="auth-field">
-                <label htmlFor="login-username">Username</label>
-                <input
-                  id="login-username"
-                  type="text"
-                  value={loginUsername}
-                  onChange={(e) => setLoginUsername(e.target.value)}
-                  placeholder="Enter your username"
-                  autoComplete="username"
-                  autoFocus
-                />
-              </div>
-              <div className="auth-field">
-                <label htmlFor="login-password">Password</label>
-                <input
-                  id="login-password"
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                />
-              </div>
-              {loginError && <div className="auth-error">{loginError}</div>}
-              <button type="submit" className="auth-button" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign In"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {sidebarOpen ? (
         <>
           <ConversationSidebar

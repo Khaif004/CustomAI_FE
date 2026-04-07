@@ -15,13 +15,26 @@
   --border-medium: #d1d1d6;
   --border-dark: #b4b4b4;
 
+  /* OLD GREEN THEME - Commented for easy rollback
   --accent-primary: #10a37f;
   --accent-hover: #0d8e6f;
   --accent-light: #e7f6f3;
+  */
+
+  /* NEW PURPLE THEME - Matching login page */
+  --accent-primary: #667eea;
+  --accent-hover: #5568d3;
+  --accent-light: #f0f3ff;
+  --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 
   --error: #ef4444;
   --warning: #f59e0b;
   --success: #10b981;
+
+  --code-bg: #f5f5f5;
+  --code-text: #1e1e1e;
+  --code-block-bg: #1e1e1e;
+  --code-block-text: #d4d4d4;
 
   --shadow-sm: 0 0.0625rem 0.125rem 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1);
@@ -64,13 +77,27 @@
   --border-medium: #4a4a4a;
   --border-dark: #565656;
 
+  /* OLD GREEN THEME - Commented for easy rollback
   --accent-primary: #19c37d;
   --accent-hover: #1aa874;
   --accent-light: #1a3a30;
+  */
+
+  /* NEW PURPLE THEME - Matching login page */
+  --accent-primary: #7c8bf0;
+  --accent-hover: #8a98f5;
+  --accent-light: #2d2a48;
+  --accent-gradient: linear-gradient(135deg, #7c8bf0 0%, #8b6bb8 100%);
 
   --error: #f87171;
   --warning: #fbbf24;
   --success: #34d399;
+
+  /* Code block colors */
+  --code-bg: #2a2a2a;
+  --code-text: #e4e4e4;
+  --code-block-bg: #1e1e1e;
+  --code-block-text: #d4d4d4;
 
   --shadow-sm: 0 0.0625rem 0.125rem 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.4);

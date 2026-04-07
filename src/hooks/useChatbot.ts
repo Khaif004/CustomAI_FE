@@ -1,8 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ChatMessage, Conversation } from "../types/chat";
 import { chatApi, authApi, tokenService, ApiError } from "../services/api";
+import { authTokenService, logout as oauthLogout } from "./useOAuth2";
 
 const STORAGE_KEY = "chatbot_conversations";
+
+const checkAuthentication = (): boolean => {
+  const oauthTokens = authTokenService.getTokens();
+  if (oauthTokens && !authTokenService.isExpired()) {
+    return true;
+  }
+  
+  return !!tokenService.getToken();
+};
 
 export const useChatbot = () => {
   const [conversations, setConversations] = useState<Conversation[]>(() => {
@@ -21,7 +31,7 @@ export const useChatbot = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(
-    !!tokenService.getToken(),
+    checkAuthentication(),
   );
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -60,8 +70,7 @@ export const useChatbot = () => {
   }, []);
 
   const logout = useCallback(() => {
-    tokenService.clearTokens();
-    setIsAuthenticated(false);
+    oauthLogout(); // This clears tokens and navigates to /login
   }, []);
 
   const refreshAuth = useCallback(async (): Promise<boolean> => {
@@ -79,6 +88,13 @@ export const useChatbot = () => {
   }, []);
 
   const ensureAuth = useCallback(async (): Promise<boolean> => {
+    // Check OAuth tokens first (SSO)
+    const oauthTokens = authTokenService.getTokens();
+    if (oauthTokens && !authTokenService.isExpired()) {
+      setIsAuthenticated(true);
+      return true;
+    }
+
     if (!tokenService.getToken()) {
       setIsAuthenticated(false);
       return false;
@@ -98,6 +114,14 @@ export const useChatbot = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     const interval = setInterval(() => {
+      const oauthTokens = authTokenService.getTokens();
+      if (oauthTokens && authTokenService.isExpired()) {
+        authTokenService.clearTokens();
+        setIsAuthenticated(false);
+        setError("Session expired. Please log in again.");
+        return;
+      }
+
       if (tokenService.isTokenExpired()) {
         if (tokenService.getRefreshToken()) {
           refreshAuth();

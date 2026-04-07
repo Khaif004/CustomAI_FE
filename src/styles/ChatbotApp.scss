@@ -127,7 +127,8 @@
   &:hover:not(:disabled) {
     background: var(--accent-hover);
     transform: translateY(-0.125rem);
-    box-shadow: 0 0.5rem 1rem rgba(13, 134, 134, 0.3);
+    /* OLD GREEN THEME SHADOW: box-shadow: 0 0.5rem 1rem rgba(13, 134, 134, 0.3); */
+    box-shadow: 0 0.5rem 1rem rgba(102, 126, 234, 0.3); /* NEW PURPLE THEME */
   }
 
   &:active:not(:disabled) {

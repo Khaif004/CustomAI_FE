@@ -1,4 +1,6 @@
 import type { ChatResponse, AuthResponse, User } from '../types/chat';
+import { authTokenService, refreshAccessToken } from '../hooks/useOAuth2';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Custom error class with status code
@@ -12,6 +14,7 @@ export class ApiError extends Error {
   }
 }
 
+// Legacy token service for backward compatibility (dev mode)
 export const tokenService = {
   getToken: () => localStorage.getItem('access_token'),
   getRefreshToken: () => localStorage.getItem('refresh_token'),
@@ -35,8 +38,30 @@ export const tokenService = {
   },
 };
 
+// Get active token (prefers OAuth tokens)
+const getActiveToken = (): string | null => {
+  // First try OAuth tokens
+  const oauthToken = authTokenService.getAccessToken();
+  if (oauthToken) return oauthToken;
+  
+  // Fallback to legacy dev tokens
+  return tokenService.getToken();
+};
+
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const token = tokenService.getToken();
+  // Check if OAuth token is expired and refresh if needed
+  if (authTokenService.getTokens() && authTokenService.isExpired()) {
+    try {
+      await refreshAccessToken();
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      // Redirect to login
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+  }
+
+  const token = getActiveToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(typeof options.headers === 'object' && options.headers ? (options.headers as Record<string, string>) : {}),
@@ -52,7 +77,13 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    // Handle 401 - token expired
+    if (response.status === 401) {
+      window.location.href = '/login';
+      throw new ApiError(401, 'Unauthorized');
+    }
+    
+    const error = await response.json().catch(() => ({ detail: 'API Error' }));
     const errorMessage = error.detail || error.message || 'API Error';
     throw new ApiError(response.status, errorMessage);
   }
@@ -121,7 +152,17 @@ export const chatApi = {
     onError: (error: string) => void,
     signal?: AbortSignal,
   ) => {
-    const token = tokenService.getToken();
+    // Check token expiry and refresh if needed
+    if (authTokenService.getTokens() && authTokenService.isExpired()) {
+      try {
+        await refreshAccessToken();
+      } catch (error) {
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
+    }
+
+    const token = getActiveToken();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -195,7 +236,17 @@ export const chatApi = {
     onFileInfo?: (info: { filename: string; size: number; truncated: boolean }) => void,
     signal?: AbortSignal,
   ) => {
-    const token = tokenService.getToken();
+    // Check token expiry and refresh if needed
+    if (authTokenService.getTokens() && authTokenService.isExpired()) {
+      try {
+        await refreshAccessToken();
+      } catch (error) {
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
+    }
+
+    const token = getActiveToken();
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
