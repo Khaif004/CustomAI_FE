@@ -8,7 +8,6 @@ import RegenerateIcon from "../assets/regenerateIcon.svg?react";
 import ThumbsUpIcon from "../assets/thumbsUpIcon.svg?react";
 import ThumbsDownIcon from "../assets/thumbsDownIcon.svg?react";
 import hljs from "highlight.js";
-import "highlight.js/styles/vs2015.css";
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -225,11 +224,12 @@ export const ChatMessage = ({
     const lang = language.toLowerCase() || "code";
 
     useEffect(() => {
+      if (isStreaming) return;
       if (codeRef.current) {
         codeRef.current.removeAttribute("data-highlighted");
         hljs.highlightElement(codeRef.current);
       }
-    }, [code, lang]);
+    }, [code, lang, isStreaming]);
 
     const handleCopy = async () => {
       await navigator.clipboard.writeText(code);

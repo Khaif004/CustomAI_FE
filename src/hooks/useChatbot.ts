@@ -114,15 +114,7 @@ export const useChatbot = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     const interval = setInterval(() => {
-      const oauthTokens = authTokenService.getTokens();
-      if (oauthTokens && authTokenService.isExpired()) {
-        authTokenService.clearTokens();
-        setIsAuthenticated(false);
-        setError("Session expired. Please log in again.");
-        return;
-      }
-
-      if (tokenService.isTokenExpired()) {
+      if (!authTokenService.getTokens() && tokenService.isTokenExpired()) {
         if (tokenService.getRefreshToken()) {
           refreshAuth();
         } else {

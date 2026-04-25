@@ -48,6 +48,11 @@ const getActiveToken = (): string | null => {
   return tokenService.getToken();
 };
 
+// Dispatch a custom event so SessionManager can show the timeout modal
+const dispatchSessionExpired = () => {
+  window.dispatchEvent(new CustomEvent('session-expired'));
+};
+
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   // Check if OAuth token is expired and refresh if needed
   if (authTokenService.getTokens() && authTokenService.isExpired()) {
@@ -55,8 +60,7 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
       await refreshAccessToken();
     } catch (error) {
       console.error('Token refresh failed:', error);
-      // Redirect to login
-      window.location.href = '/login';
+      dispatchSessionExpired();
       throw new Error('Session expired');
     }
   }
@@ -79,7 +83,7 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   if (!response.ok) {
     // Handle 401 - token expired
     if (response.status === 401) {
-      window.location.href = '/login';
+      dispatchSessionExpired();
       throw new ApiError(401, 'Unauthorized');
     }
     
@@ -157,7 +161,7 @@ export const chatApi = {
       try {
         await refreshAccessToken();
       } catch (error) {
-        window.location.href = '/login';
+        dispatchSessionExpired();
         throw new Error('Session expired');
       }
     }
@@ -241,7 +245,7 @@ export const chatApi = {
       try {
         await refreshAccessToken();
       } catch (error) {
-        window.location.href = '/login';
+        dispatchSessionExpired();
         throw new Error('Session expired');
       }
     }

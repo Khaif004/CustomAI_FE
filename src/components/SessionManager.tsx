@@ -1,36 +1,37 @@
 import { useEffect, useState } from 'react';
-import { authTokenService, logout } from '../hooks/useOAuth2';
+import { authTokenService } from '../hooks/useOAuth2';
+import { navigate } from './Router';
 import '../styles/SessionManager.scss';
 
-const IDLE_TIMEOUT = 60 * 60 * 1000; // 60 minutes
-const CHECK_INTERVAL = 5 * 1000; // Check every 5 seconds
+const IDLE_TIMEOUT = 60 * 60 * 1000;
+const CHECK_INTERVAL = 5 * 1000;
 
 export function SessionManager() {
   const [showTimeoutModal, setShowTimeoutModal] = useState(false);
 
   useEffect(() => {
-    // Check if this is a manual logout
     const manualLogout = sessionStorage.getItem('manualLogout');
     if (manualLogout === 'true') {
       sessionStorage.removeItem('manualLogout');
-      return; // Don't run timeout check for manual logout
+      return;
     }
 
-    // Update last activity timestamp
+    const handleSessionExpired = () => {
+      setShowTimeoutModal(true);
+    };
+    window.addEventListener('session-expired', handleSessionExpired);
+
     const updateActivity = () => {
       localStorage.setItem('lastActivity', Date.now().toString());
     };
 
-    // Track user activity
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     events.forEach(event => {
       window.addEventListener(event, updateActivity);
     });
 
-    // Initialize last activity
     updateActivity();
 
-    // Check for idle timeout periodically
     const intervalId = setInterval(() => {
       const lastActivity = localStorage.getItem('lastActivity');
       if (!lastActivity) return;
@@ -38,14 +39,13 @@ export function SessionManager() {
       const idleTime = Date.now() - parseInt(lastActivity, 10);
       
       if (idleTime > IDLE_TIMEOUT) {
-        // Session expired due to inactivity
-        authTokenService.clearTokens();
+        clearInterval(intervalId);
         setShowTimeoutModal(true);
       }
     }, CHECK_INTERVAL);
 
-    // Cleanup
     return () => {
+      window.removeEventListener('session-expired', handleSessionExpired);
       events.forEach(event => {
         window.removeEventListener(event, updateActivity);
       });
@@ -53,9 +53,10 @@ export function SessionManager() {
     };
   }, []);
 
-  const handleTimeoutClose = () => {
+  const handleLoginRedirect = () => {
+    authTokenService.clearTokens();
     setShowTimeoutModal(false);
-    logout();
+    navigate('/login');
   };
 
   if (!showTimeoutModal) return null;
@@ -69,10 +70,10 @@ export function SessionManager() {
             <polyline points="12 6 12 12 16 14" />
           </svg>
         </div>
-        <h2>Session Expired</h2>
-        <p>You've been logged out due to inactivity.</p>
-        <button onClick={handleTimeoutClose} className="timeout-button">
-          Got it!
+        <h2>Session Timed Out</h2>
+        <p>You have been inactive for a long time. Please login again to continue.</p>
+        <button onClick={handleLoginRedirect} className="timeout-button">
+          Login
         </button>
       </div>
     </div>
