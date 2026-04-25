@@ -383,7 +383,7 @@ export const ChatbotApp = () => {
                   value={inputValue}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder={attachedFile ? "Add a message about this file (optional)..." : "Message AI..."}
+                  placeholder={attachedFile ? "Add a message about this file (optional)..." : "Ask anything"}
                   rows={1}
                   disabled={isLoading}
                 />

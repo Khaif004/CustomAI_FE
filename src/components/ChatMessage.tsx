@@ -159,6 +159,11 @@ export const ChatMessage = ({
         return;
       }
 
+      if (line.startsWith("#### ")) {
+        flushList();
+        elements.push(<h5 key={index}>{formatInline(line.slice(5))}</h5>);
+        return;
+      }
       if (line.startsWith("### ")) {
         flushList();
         elements.push(<h5 key={index}>{formatInline(line.slice(4))}</h5>);
@@ -330,7 +335,6 @@ export const ChatMessage = ({
           <>
             {message.attachment && (
               <div className="message-attachment">
-                <span className="attachment-icon">📎</span>
                 <span className="attachment-name">{message.attachment.name}</span>
               </div>
             )}
