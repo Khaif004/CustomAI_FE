@@ -488,8 +488,11 @@
     .hljs,
     pre code.hljs {
       background: #1e1e1e !important;
-      color:      #abb2bf !important;
+      color:      #51d4b4 !important;
     }
+
+    .hljs-punctuation       { color: #89dceb !important; }
+    .hljs-subst             { color: #cdd6f4 !important; }
 
     .hljs-keyword,
     .hljs-operator,
@@ -550,8 +553,11 @@
     .hljs,
     pre code.hljs {
       background: #f8f9fc !important;
-      color:      #383a42 !important;
+      color:      #2c2e34 !important;
     }
+
+    .hljs-punctuation       { color: #0184bc !important; }
+    .hljs-subst             { color: #2c2e34 !important; }
 
     .hljs-keyword,
     .hljs-operator,
