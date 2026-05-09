@@ -9,12 +9,14 @@ interface RouterProps {
   children: ReactNode;
 }
 
+const normalizePath = (path: string) => (path === '/index.html' ? '/' : path);
+
 export function Router({ children }: RouterProps) {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [currentPath, setCurrentPath] = useState(normalizePath(window.location.pathname));
 
   useEffect(() => {
     const handleLocationChange = () => {
-      setCurrentPath(window.location.pathname);
+      setCurrentPath(normalizePath(window.location.pathname));
     };
 
     window.addEventListener('popstate', handleLocationChange);

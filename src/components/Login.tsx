@@ -14,7 +14,7 @@ export function Login() {
     e.preventDefault();
     setIsLoadingSSO(true);
     setError(null);
-    
+
     try {
       await useOAuth2();
       window.location.href = '/';

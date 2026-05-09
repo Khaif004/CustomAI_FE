@@ -1,16 +1,17 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { authTokenService } from '../hooks/useOAuth2';
+import { tokenService } from '../services/api';
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const tokens = authTokenService.getTokens();
+  const hasOAuthToken = authTokenService.getTokens() && !authTokenService.isExpired();
+  const hasAppToken = !!tokenService.getToken();
 
-  // If no tokens, redirect to login
-  if (!tokens) {
-    window.location.href = '/login';
+  if (!hasOAuthToken && !hasAppToken) {
+    window.location.replace('/login');
     return null;
   }
 

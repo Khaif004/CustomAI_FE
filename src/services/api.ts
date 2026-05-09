@@ -1,7 +1,7 @@
 import type { ChatResponse, AuthResponse, User } from '../types/chat';
 import { authTokenService, refreshAccessToken } from '../hooks/useOAuth2';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = '';
 
 // Custom error class with status code
 export class ApiError extends Error {

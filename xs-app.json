@@ -1,0 +1,53 @@
+{
+  "authenticationMethod": "route",
+  "sessionTimeout": 60,
+  "compression": {
+    "enabled": false
+  },
+  "routes": [
+    {
+      "source": "^/api/chat/stream$",
+      "target": "/api/chat/stream",
+      "destination": "backend",
+      "authenticationType": "xsuaa",
+      "csrfProtection": false
+    },
+    {
+      "source": "^/api/chat/upload$",
+      "target": "/api/chat/upload",
+      "destination": "backend",
+      "authenticationType": "xsuaa",
+      "csrfProtection": false
+    },
+    {
+      "source": "^/api/(.*)$",
+      "target": "/api/$1",
+      "destination": "backend",
+      "authenticationType": "xsuaa",
+      "csrfProtection": false
+    },
+    {
+      "source": "^/callback$",
+      "target": "/index.html",
+      "localDir": "resources",
+      "authenticationType": "none"
+    },
+    {
+      "source": "^/assets/(.*)$",
+      "target": "/assets/$1",
+      "localDir": "resources",
+      "authenticationType": "none"
+    },
+    {
+      "source": "^/(favicon\\.svg|icons\\.svg)$",
+      "localDir": "resources",
+      "authenticationType": "none"
+    },
+    {
+      "source": "^(.*)$",
+      "target": "/index.html",
+      "localDir": "resources",
+      "authenticationType": "xsuaa"
+    }
+  ]
+}

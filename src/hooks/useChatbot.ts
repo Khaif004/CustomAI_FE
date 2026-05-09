@@ -88,7 +88,6 @@ export const useChatbot = () => {
   }, []);
 
   const ensureAuth = useCallback(async (): Promise<boolean> => {
-    // Check OAuth tokens first (SSO)
     const oauthTokens = authTokenService.getTokens();
     if (oauthTokens && !authTokenService.isExpired()) {
       setIsAuthenticated(true);

@@ -1,0 +1,20 @@
+---
+applications:
+  - name: btp-copilot-FE
+    path: .
+    memory: 256M
+    disk_quota: 512M
+    buildpacks:
+      - nodejs_buildpack
+    command: node node_modules/@sap/approuter/approuter.js
+    env:
+      destinations: >
+        [
+          {
+            "name": "backend",
+            "url": "https://btp-copilot-backend.cfapps.eu10-004.hana.ondemand.com",
+            "forwardAuthToken": true
+          }
+        ]
+    services:
+      - btp-copilot-xsuaa
