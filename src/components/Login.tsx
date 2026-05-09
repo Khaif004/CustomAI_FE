@@ -157,7 +157,7 @@ export function Login() {
 
       <div className="login-right">
         <div className="branding">
-          <h2>Langchain Chatbot</h2>
+          <h2>BTP Copilot</h2>
           <p className="tagline">Enterprise AI Assistant powered by SAP BTP</p>
           <div className="features">
             <div className="feature">
