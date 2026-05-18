@@ -49,8 +49,7 @@ export const useChatbot = () => {
       const pending = pendingTextRef.current;
       if (!pending || !ctx) return;
 
-      // Adaptive speed: faster when backlogged, slower when caught up
-      const speed = Math.max(3, Math.floor(pending.length / 10));
+      const speed = Math.max(2, Math.floor(pending.length / 30));
       const toRender = pending.slice(0, speed);
       pendingTextRef.current = pending.slice(speed);
 
@@ -76,7 +75,7 @@ export const useChatbot = () => {
           };
         }),
       );
-    }, 16);
+    }, 50);
   }, []);
 
   const stopTypewriter = useCallback(() => {
