@@ -167,7 +167,21 @@
     font-family: var(--font-mono);
   }
 
-  // Lists
+  .chat-link {
+    color: var(--accent-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+    word-break: break-word;
+    cursor: pointer;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+
+    &:hover {
+      color: var(--accent-hover, var(--accent-primary));
+      text-decoration-thickness: 2px;
+    }
+  }
+
   ul,
   ol {
     margin: 0.5rem 0;

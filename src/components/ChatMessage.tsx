@@ -37,17 +37,32 @@ export const ChatMessage = ({
     let remaining = text;
     let keyIdx = 0;
 
+    const labelFromUrl = (url: string): string => {
+      try {
+        const { hostname, pathname } = new URL(url);
+        const host = hostname.replace(/^www\./, '');
+        const slug = pathname.replace(/\/$/, '').split('/').filter(Boolean).pop();
+        if (!slug) return host;
+        const readable = slug
+          .replace(/[_-]/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase());
+        return `${readable} – ${host}`;
+      } catch {
+        return url;
+      }
+    };
+
     while (remaining.length > 0) {
       const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
       const codeMatch = remaining.match(/`([^`]+)`/);
+      const mdLinkMatch = remaining.match(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/);
+      const bareUrlMatch = remaining.match(/(?<!\]\()https?:\/\/[^\s)>\]"]+/);
 
       const matches = [
-        boldMatch
-          ? { type: "bold", match: boldMatch, index: boldMatch.index! }
-          : null,
-        codeMatch
-          ? { type: "code", match: codeMatch, index: codeMatch.index! }
-          : null,
+        boldMatch   ? { type: 'bold',    match: boldMatch,   index: boldMatch.index! }   : null,
+        codeMatch   ? { type: 'code',    match: codeMatch,   index: codeMatch.index! }   : null,
+        mdLinkMatch ? { type: 'mdlink',  match: mdLinkMatch, index: mdLinkMatch.index! } : null,
+        bareUrlMatch? { type: 'bareurl', match: bareUrlMatch,index: bareUrlMatch.index!} : null,
       ]
         .filter(Boolean)
         .sort((a, b) => a!.index - b!.index);
@@ -62,13 +77,43 @@ export const ChatMessage = ({
         parts.push(remaining.substring(0, first.index));
       }
 
-      if (first.type === "bold") {
+      if (first.type === 'bold') {
         parts.push(<strong key={`b${keyIdx++}`}>{first.match![1]}</strong>);
-      } else if (first.type === "code") {
+      } else if (first.type === 'code') {
         parts.push(
           <code key={`c${keyIdx++}`} className="inline-code">
             {first.match![1]}
           </code>,
+        );
+      } else if (first.type === 'mdlink') {
+        const label = first.match![1];
+        const url   = first.match![2];
+        const displayLabel = label === url ? labelFromUrl(url) : label;
+        parts.push(
+          <a
+            key={`l${keyIdx++}`}
+            href={url}
+            title={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="chat-link"
+          >
+            {displayLabel}
+          </a>,
+        );
+      } else if (first.type === 'bareurl') {
+        const url = first.match![0];
+        parts.push(
+          <a
+            key={`u${keyIdx++}`}
+            href={url}
+            title={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="chat-link"
+          >
+            {labelFromUrl(url)}
+          </a>,
         );
       }
 
