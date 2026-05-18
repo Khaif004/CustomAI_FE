@@ -17,6 +17,8 @@ import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
 
 export const ChatbotApp = () => {
+  const appId = new URLSearchParams(window.location.search).get("appId");
+
   const {
     conversations,
     currentConversation,
@@ -34,7 +36,7 @@ export const ChatbotApp = () => {
     editMessage,
     regenerateLastResponse,
     reactToMessage,
-  } = useChatbot();
+  } = useChatbot(appId);
 
   const [inputValue, setInputValue] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);

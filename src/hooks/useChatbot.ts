@@ -14,7 +14,7 @@ const checkAuthentication = (): boolean => {
   return !!tokenService.getToken();
 };
 
-export const useChatbot = () => {
+export const useChatbot = (appId?: string | null) => {
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
@@ -35,21 +35,63 @@ export const useChatbot = () => {
   );
   const abortControllerRef = useRef<AbortController | null>(null);
   const pendingTextRef = useRef<string>('');
-  const typewriterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const typewriterRunningRef = useRef<boolean>(false);
   const typewriterCtxRef = useRef<{ msgId: string; convId: string } | null>(null);
+  const streamDoneRef = useRef<boolean>(false);
+  const streamDoneCallbackRef = useRef<(() => void) | null>(null);
+  const typewriterWorkerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    const code = `
+      let id = null;
+      self.onmessage = function(e) {
+        if (e.data === 'start') {
+          if (id) return;
+          id = setInterval(() => self.postMessage('tick'), ${30});
+        } else if (e.data === 'stop') {
+          clearInterval(id); id = null;
+        }
+      };
+    `;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    URL.revokeObjectURL(url);
+    typewriterWorkerRef.current = worker;
+    return () => { worker.terminate(); typewriterWorkerRef.current = null; };
+  }, []);
 
   const startTypewriter = useCallback((msgId: string, convId: string) => {
-    if (typewriterIntervalRef.current) {
+    if (typewriterRunningRef.current) {
       typewriterCtxRef.current = { msgId, convId };
       return;
     }
+    typewriterRunningRef.current = true;
     typewriterCtxRef.current = { msgId, convId };
-    typewriterIntervalRef.current = setInterval(() => {
+
+    const worker = typewriterWorkerRef.current;
+    if (!worker) return;
+
+    worker.onmessage = () => {
       const ctx = typewriterCtxRef.current;
       const pending = pendingTextRef.current;
-      if (!pending || !ctx) return;
 
-      const speed = Math.max(2, Math.floor(pending.length / 30));
+      if (!pending) {
+        if (streamDoneRef.current) {
+          worker.postMessage('stop');
+          typewriterRunningRef.current = false;
+          typewriterCtxRef.current = null;
+          streamDoneRef.current = false;
+          const cb = streamDoneCallbackRef.current;
+          streamDoneCallbackRef.current = null;
+          cb?.();
+        }
+        return;
+      }
+
+      if (!ctx) return;
+
+      const speed = 4;
       const toRender = pending.slice(0, speed);
       pendingTextRef.current = pending.slice(speed);
 
@@ -62,7 +104,7 @@ export const useChatbot = () => {
               ...c,
               messages: [
                 ...c.messages,
-                { id: ctx.msgId, role: "assistant" as const, content: toRender, timestamp: new Date() },
+                { id: ctx.msgId, role: 'assistant' as const, content: toRender, timestamp: new Date() },
               ],
               updatedAt: new Date(),
             };
@@ -75,13 +117,17 @@ export const useChatbot = () => {
           };
         }),
       );
-    }, 50);
+    };
+
+    worker.postMessage('start');
   }, []);
 
   const stopTypewriter = useCallback(() => {
-    if (typewriterIntervalRef.current) {
-      clearInterval(typewriterIntervalRef.current);
-      typewriterIntervalRef.current = null;
+    streamDoneRef.current = false;
+    streamDoneCallbackRef.current = null;
+    if (typewriterRunningRef.current) {
+      typewriterWorkerRef.current?.postMessage('stop');
+      typewriterRunningRef.current = false;
     }
     const remaining = pendingTextRef.current;
     pendingTextRef.current = '';
@@ -90,6 +136,17 @@ export const useChatbot = () => {
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id !== ctx.convId) return c;
+          const existingMsg = c.messages.find((m) => m.id === ctx.msgId);
+          if (!existingMsg) {
+            return {
+              ...c,
+              messages: [
+                ...c.messages,
+                { id: ctx.msgId, role: 'assistant' as const, content: remaining, timestamp: new Date() },
+              ],
+              updatedAt: new Date(),
+            };
+          }
           return {
             ...c,
             messages: c.messages.map((m) =>
@@ -122,11 +179,10 @@ export const useChatbot = () => {
 
   useEffect(() => {
     return () => {
-      if (typewriterIntervalRef.current) {
-        clearInterval(typewriterIntervalRef.current);
-      }
+      typewriterWorkerRef.current?.postMessage('stop');
     };
   }, []);
+
 
   const login = useCallback(async (username: string, password: string) => {
     try {
@@ -282,26 +338,29 @@ export const useChatbot = () => {
             startTypewriter(assistantMessageId, currentConversationId);
           },
           (metadata) => {
-            setConversations((prev) => {
-              return prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
-                return {
-                  ...c,
-                  messages: c.messages.map((m) =>
-                    m.id === assistantMessageId
-                      ? {
-                        ...m,
-                        modelUsed: metadata.model,
-                        responseTime: metadata.response_time,
-                      }
-                      : m,
-                  ),
-                };
-              });
-            });
-            stopTypewriter();
-            setIsStreaming(false);
-            setIsLoading(false);
+            const finish = () => {
+              setConversations((prev) =>
+                prev.map((c) => {
+                  if (c.id !== currentConversationId) return c;
+                  return {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId
+                        ? { ...m, modelUsed: metadata.model, responseTime: metadata.response_time }
+                        : m,
+                    ),
+                  };
+                }),
+              );
+              setIsStreaming(false);
+              setIsLoading(false);
+            };
+            if (typewriterRunningRef.current) {
+              streamDoneRef.current = true;
+              streamDoneCallbackRef.current = finish;
+            } else {
+              finish();
+            }
           },
           (errorMsg: string) => {
             setError(errorMsg);
@@ -309,6 +368,7 @@ export const useChatbot = () => {
             setIsLoading(false);
           },
           abortControllerRef.current?.signal,
+          appId,
         );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -447,26 +507,29 @@ export const useChatbot = () => {
             startTypewriter(assistantMessageId, currentConversationId);
           },
           (metadata) => {
-            setConversations((prev) => {
-              return prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
-                return {
-                  ...c,
-                  messages: c.messages.map((m) =>
-                    m.id === assistantMessageId
-                      ? {
-                        ...m,
-                        modelUsed: metadata.model,
-                        responseTime: metadata.response_time,
-                      }
-                      : m,
-                  ),
-                };
-              });
-            });
-            stopTypewriter();
-            setIsStreaming(false);
-            setIsLoading(false);
+            const finish = () => {
+              setConversations((prev) =>
+                prev.map((c) => {
+                  if (c.id !== currentConversationId) return c;
+                  return {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId
+                        ? { ...m, modelUsed: metadata.model, responseTime: metadata.response_time }
+                        : m,
+                    ),
+                  };
+                }),
+              );
+              setIsStreaming(false);
+              setIsLoading(false);
+            };
+            if (typewriterRunningRef.current) {
+              streamDoneRef.current = true;
+              streamDoneCallbackRef.current = finish;
+            } else {
+              finish();
+            }
           },
           (errorMsg: string) => {
             setError(errorMsg);

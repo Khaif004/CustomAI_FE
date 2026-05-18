@@ -155,6 +155,7 @@ export const chatApi = {
     onDone: (metadata: { model?: string; response_time?: number }) => void,
     onError: (error: string) => void,
     signal?: AbortSignal,
+    appId?: string | null,
   ) => {
     if (authTokenService.getTokens() && authTokenService.isExpired()) {
       try {
@@ -175,6 +176,7 @@ export const chatApi = {
       body: JSON.stringify({
         message,
         conversation_history: conversationHistory,
+        ...(appId ? { app_id: appId } : {}),
       }),
       signal,
     });
