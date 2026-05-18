@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ChatMessage, Conversation } from "../types/chat";
 import { chatApi, authApi, tokenService, ApiError } from "../services/api";
-import { authTokenService, logout as oauthLogout } from "./useOAuth2";
+import { authTokenService, logout as oauthLogout, refreshAccessToken } from "./useOAuth2";
 
 const STORAGE_KEY = "chatbot_conversations";
 
@@ -164,9 +164,24 @@ export const useChatbot = () => {
 
   const ensureAuth = useCallback(async (): Promise<boolean> => {
     const oauthTokens = authTokenService.getTokens();
-    if (oauthTokens && !authTokenService.isExpired()) {
-      setIsAuthenticated(true);
-      return true;
+    if (oauthTokens) {
+      if (!authTokenService.isExpired()) {
+        const tokens = authTokenService.getTokens()!;
+        const msLeft = tokens.expires_at - Date.now();
+        if (msLeft < 2 * 60 * 1000) {
+          try { await refreshAccessToken(); } catch {  }
+        }
+        setIsAuthenticated(true);
+        return true;
+      }
+      try {
+        await refreshAccessToken();
+        setIsAuthenticated(true);
+        return true;
+      } catch {
+        setIsAuthenticated(false);
+        return false;
+      }
     }
 
     if (!tokenService.getToken()) {
@@ -308,7 +323,8 @@ export const useChatbot = () => {
         if (err instanceof ApiError && err.status === 401) {
           setIsAuthenticated(false);
           tokenService.clearTokens();
-          setError("Your session has expired. Please sign in again.");
+          authTokenService.clearTokens();
+          window.dispatchEvent(new CustomEvent('session-expired'));
         } else {
           setError(message);
         }
@@ -472,7 +488,8 @@ export const useChatbot = () => {
         if (err instanceof ApiError && err.status === 401) {
           setIsAuthenticated(false);
           tokenService.clearTokens();
-          setError("Your session has expired. Please sign in again.");
+          authTokenService.clearTokens();
+          window.dispatchEvent(new CustomEvent('session-expired'));
         } else {
           setError(errMessage);
         }

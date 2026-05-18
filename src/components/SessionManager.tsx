@@ -1,13 +1,60 @@
-import { useEffect, useState } from 'react';
-import { authTokenService } from '../hooks/useOAuth2';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { authTokenService, refreshAccessToken } from '../hooks/useOAuth2';
 import { navigate } from './Router';
 import '../styles/SessionManager.scss';
 
-const IDLE_TIMEOUT = 60 * 60 * 1000;
-const CHECK_INTERVAL = 5 * 1000;
+const IDLE_WARNING_MS = 1 * 60 * 1000;
+const AUTO_LOGOUT_SECS = 60;
+const CHECK_INTERVAL_MS = 10 * 1000;
 
 export function SessionManager() {
-  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+  const [countdown, setCountdown] = useState(AUTO_LOGOUT_SECS);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const warnedAt = useRef<number | null>(null);
+
+  const doLogout = useCallback(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    authTokenService.clearTokens();
+    setShowWarning(false);
+    navigate('/login');
+  }, []);
+
+  const startCountdown = useCallback(() => {
+    if (countdownRef.current) return;
+    warnedAt.current = Date.now();
+    setCountdown(AUTO_LOGOUT_SECS);
+    setShowWarning(true);
+
+    countdownRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - (warnedAt.current ?? Date.now())) / 1000);
+      const remaining = AUTO_LOGOUT_SECS - elapsed;
+      if (remaining <= 0) {
+        doLogout();
+      } else {
+        setCountdown(remaining);
+      }
+    }, 1000);
+  }, [doLogout]);
+
+  const handleStayLoggedIn = useCallback(async () => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    warnedAt.current = null;
+    setShowWarning(false);
+    setCountdown(AUTO_LOGOUT_SECS);
+    localStorage.setItem('lastActivity', Date.now().toString());
+    try {
+      await refreshAccessToken();
+    } catch {
+    }
+  }, []);
+
+  const handleLoginRedirect = useCallback(() => {
+    doLogout();
+  }, [doLogout]);
 
   useEffect(() => {
     const manualLogout = sessionStorage.getItem('manualLogout');
@@ -17,49 +64,40 @@ export function SessionManager() {
     }
 
     const handleSessionExpired = () => {
-      setShowTimeoutModal(true);
+      if (!showWarning) startCountdown();
     };
     window.addEventListener('session-expired', handleSessionExpired);
 
     const updateActivity = () => {
       localStorage.setItem('lastActivity', Date.now().toString());
+      if (showWarning) handleStayLoggedIn();
     };
-
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    events.forEach(event => {
-      window.addEventListener(event, updateActivity);
-    });
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    activityEvents.forEach(e => window.addEventListener(e, updateActivity, { passive: true }));
 
     updateActivity();
 
-    const intervalId = setInterval(() => {
+    const idleChecker = setInterval(() => {
+      if (showWarning) return;
+      const tokens = authTokenService.getTokens();
+      if (!tokens) return;
       const lastActivity = localStorage.getItem('lastActivity');
       if (!lastActivity) return;
-
-      const idleTime = Date.now() - parseInt(lastActivity, 10);
-      
-      if (idleTime > IDLE_TIMEOUT) {
-        clearInterval(intervalId);
-        setShowTimeoutModal(true);
+      const idle = Date.now() - parseInt(lastActivity, 10);
+      if (idle >= IDLE_WARNING_MS) {
+        startCountdown();
       }
-    }, CHECK_INTERVAL);
+    }, CHECK_INTERVAL_MS);
 
     return () => {
       window.removeEventListener('session-expired', handleSessionExpired);
-      events.forEach(event => {
-        window.removeEventListener(event, updateActivity);
-      });
-      clearInterval(intervalId);
+      activityEvents.forEach(e => window.removeEventListener(e, updateActivity));
+      clearInterval(idleChecker);
+      if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, []);
 
-  const handleLoginRedirect = () => {
-    authTokenService.clearTokens();
-    setShowTimeoutModal(false);
-    navigate('/login');
-  };
-
-  if (!showTimeoutModal) return null;
+  if (!showWarning) return null;
 
   return (
     <div className="session-timeout-overlay">
@@ -70,11 +108,19 @@ export function SessionManager() {
             <polyline points="12 6 12 12 16 14" />
           </svg>
         </div>
-        <h2>Session Timed Out</h2>
-        <p>You have been inactive for a long time. Please login again to continue.</p>
-        <button onClick={handleLoginRedirect} className="timeout-button">
-          Login
-        </button>
+        <h2>Still there?</h2>
+        <p>
+          You've been idle for a while. For your security, you'll be logged out
+          in <strong>{countdown} second{countdown !== 1 ? 's' : ''}</strong>.
+        </p>
+        <div className="timeout-actions">
+          <button onClick={handleStayLoggedIn} className="timeout-button stay">
+            Stay Logged In
+          </button>
+          <button onClick={handleLoginRedirect} className="timeout-button logout">
+            Log Out
+          </button>
+        </div>
       </div>
     </div>
   );

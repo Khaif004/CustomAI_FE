@@ -156,13 +156,12 @@ export const chatApi = {
     onError: (error: string) => void,
     signal?: AbortSignal,
   ) => {
-    // Check token expiry and refresh if needed
     if (authTokenService.getTokens() && authTokenService.isExpired()) {
       try {
         await refreshAccessToken();
-      } catch (error) {
+      } catch {
         dispatchSessionExpired();
-        throw new Error('Session expired');
+        throw new ApiError(401, 'Session expired');
       }
     }
 
@@ -181,6 +180,10 @@ export const chatApi = {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        dispatchSessionExpired();
+        throw new ApiError(401, 'Session expired');
+      }
       const error = await response.json().catch(() => ({ detail: 'Stream error' }));
       throw new ApiError(response.status, error.detail || 'Stream error');
     }
@@ -240,13 +243,12 @@ export const chatApi = {
     onFileInfo?: (info: { filename: string; size: number; truncated: boolean }) => void,
     signal?: AbortSignal,
   ) => {
-    // Check token expiry and refresh if needed
     if (authTokenService.getTokens() && authTokenService.isExpired()) {
       try {
         await refreshAccessToken();
-      } catch (error) {
+      } catch {
         dispatchSessionExpired();
-        throw new Error('Session expired');
+        throw new ApiError(401, 'Session expired');
       }
     }
 
@@ -267,6 +269,10 @@ export const chatApi = {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        dispatchSessionExpired();
+        throw new ApiError(401, 'Session expired');
+      }
       const error = await response.json().catch(() => ({ detail: 'Upload error' }));
       throw new ApiError(response.status, error.detail || 'Upload error');
     }
