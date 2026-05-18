@@ -3,7 +3,7 @@ import { authTokenService, refreshAccessToken } from '../hooks/useOAuth2';
 import { navigate } from './Router';
 import '../styles/SessionManager.scss';
 
-const IDLE_WARNING_MS = 1 * 60 * 1000;
+const IDLE_WARNING_MS = 5 * 60 * 1000;
 const AUTO_LOGOUT_SECS = 60;
 const CHECK_INTERVAL_MS = 10 * 1000;
 
@@ -110,7 +110,7 @@ export function SessionManager() {
         </div>
         <h2>Still there?</h2>
         <p>
-          You've been idle for a while. For your security, you'll be logged out
+          You've been idle for a while. You'll be logged out
           in <strong>{countdown} second{countdown !== 1 ? 's' : ''}</strong>.
         </p>
         <div className="timeout-actions">
