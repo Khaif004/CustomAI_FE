@@ -8,12 +8,14 @@ applications:
       - nodejs_buildpack
     command: node node_modules/@sap/approuter/approuter.js
     env:
+      COMPRESSION: off
       destinations: >
         [
           {
             "name": "backend",
             "url": "https://btp-copilot-backend.cfapps.eu10-004.hana.ondemand.com",
-            "forwardAuthToken": true
+            "forwardAuthToken": true,
+            "timeout": 300000
           }
         ]
     services:

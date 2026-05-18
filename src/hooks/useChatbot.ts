@@ -10,7 +10,7 @@ const checkAuthentication = (): boolean => {
   if (oauthTokens && !authTokenService.isExpired()) {
     return true;
   }
-  
+
   return !!tokenService.getToken();
 };
 
@@ -34,6 +34,74 @@ export const useChatbot = () => {
     checkAuthentication(),
   );
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pendingTextRef = useRef<string>('');
+  const typewriterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const typewriterCtxRef = useRef<{ msgId: string; convId: string } | null>(null);
+
+  const startTypewriter = useCallback((msgId: string, convId: string) => {
+    if (typewriterIntervalRef.current) {
+      typewriterCtxRef.current = { msgId, convId };
+      return;
+    }
+    typewriterCtxRef.current = { msgId, convId };
+    typewriterIntervalRef.current = setInterval(() => {
+      const ctx = typewriterCtxRef.current;
+      const pending = pendingTextRef.current;
+      if (!pending || !ctx) return;
+
+      // Adaptive speed: faster when backlogged, slower when caught up
+      const speed = Math.max(3, Math.floor(pending.length / 10));
+      const toRender = pending.slice(0, speed);
+      pendingTextRef.current = pending.slice(speed);
+
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== ctx.convId) return c;
+          const existingMsg = c.messages.find((m) => m.id === ctx.msgId);
+          if (!existingMsg) {
+            return {
+              ...c,
+              messages: [
+                ...c.messages,
+                { id: ctx.msgId, role: "assistant" as const, content: toRender, timestamp: new Date() },
+              ],
+              updatedAt: new Date(),
+            };
+          }
+          return {
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === ctx.msgId ? { ...m, content: m.content + toRender } : m,
+            ),
+          };
+        }),
+      );
+    }, 16);
+  }, []);
+
+  const stopTypewriter = useCallback(() => {
+    if (typewriterIntervalRef.current) {
+      clearInterval(typewriterIntervalRef.current);
+      typewriterIntervalRef.current = null;
+    }
+    const remaining = pendingTextRef.current;
+    pendingTextRef.current = '';
+    const ctx = typewriterCtxRef.current;
+    if (remaining && ctx) {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== ctx.convId) return c;
+          return {
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === ctx.msgId ? { ...m, content: m.content + remaining } : m,
+            ),
+          };
+        }),
+      );
+    }
+    typewriterCtxRef.current = null;
+  }, []);
 
   const currentConversation = conversations.find(
     (c) => c.id === currentConversationId,
@@ -52,6 +120,14 @@ export const useChatbot = () => {
   useEffect(() => {
     localStorage.setItem("currentConversation", currentConversationId);
   }, [currentConversationId]);
+
+  useEffect(() => {
+    return () => {
+      if (typewriterIntervalRef.current) {
+        clearInterval(typewriterIntervalRef.current);
+      }
+    };
+  }, []);
 
   const login = useCallback(async (username: string, password: string) => {
     try {
@@ -173,7 +249,7 @@ export const useChatbot = () => {
             if (convIndex >= 0) updated[convIndex].title = aiTitle;
             return updated;
           });
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       setIsLoading(true);
@@ -187,38 +263,9 @@ export const useChatbot = () => {
           content,
           currentConversation.messages,
           (chunk: string) => {
-            setConversations((prev) => {
-              return prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
-                const existingMsg = c.messages.find(
-                  (m) => m.id === assistantMessageId,
-                );
-                if (!existingMsg) {
-                  setIsStreaming(true);
-                  return {
-                    ...c,
-                    messages: [
-                      ...c.messages,
-                      {
-                        id: assistantMessageId,
-                        role: "assistant" as const,
-                        content: chunk,
-                        timestamp: new Date(),
-                      },
-                    ],
-                    updatedAt: new Date(),
-                  };
-                }
-                return {
-                  ...c,
-                  messages: c.messages.map((m) =>
-                    m.id === assistantMessageId
-                      ? { ...m, content: m.content + chunk }
-                      : m,
-                  ),
-                };
-              });
-            });
+            setIsStreaming(true);
+            pendingTextRef.current += chunk;
+            startTypewriter(assistantMessageId, currentConversationId);
           },
           (metadata) => {
             setConversations((prev) => {
@@ -229,15 +276,16 @@ export const useChatbot = () => {
                   messages: c.messages.map((m) =>
                     m.id === assistantMessageId
                       ? {
-                          ...m,
-                          modelUsed: metadata.model,
-                          responseTime: metadata.response_time,
-                        }
+                        ...m,
+                        modelUsed: metadata.model,
+                        responseTime: metadata.response_time,
+                      }
                       : m,
                   ),
                 };
               });
             });
+            stopTypewriter();
             setIsStreaming(false);
             setIsLoading(false);
           },
@@ -318,10 +366,11 @@ export const useChatbot = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      stopTypewriter();
       setIsStreaming(false);
       setIsLoading(false);
     }
-  }, []);
+  }, [stopTypewriter]);
 
   // Send message with file attachment
   const sendMessageWithFile = useCallback(
@@ -378,38 +427,9 @@ export const useChatbot = () => {
           message,
           currentConversation.messages,
           (chunk: string) => {
-            setConversations((prev) => {
-              return prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
-                const existingMsg = c.messages.find(
-                  (m) => m.id === assistantMessageId,
-                );
-                if (!existingMsg) {
-                  setIsStreaming(true);
-                  return {
-                    ...c,
-                    messages: [
-                      ...c.messages,
-                      {
-                        id: assistantMessageId,
-                        role: "assistant" as const,
-                        content: chunk,
-                        timestamp: new Date(),
-                      },
-                    ],
-                    updatedAt: new Date(),
-                  };
-                }
-                return {
-                  ...c,
-                  messages: c.messages.map((m) =>
-                    m.id === assistantMessageId
-                      ? { ...m, content: m.content + chunk }
-                      : m,
-                  ),
-                };
-              });
-            });
+            setIsStreaming(true);
+            pendingTextRef.current += chunk;
+            startTypewriter(assistantMessageId, currentConversationId);
           },
           (metadata) => {
             setConversations((prev) => {
@@ -420,15 +440,16 @@ export const useChatbot = () => {
                   messages: c.messages.map((m) =>
                     m.id === assistantMessageId
                       ? {
-                          ...m,
-                          modelUsed: metadata.model,
-                          responseTime: metadata.response_time,
-                        }
+                        ...m,
+                        modelUsed: metadata.model,
+                        responseTime: metadata.response_time,
+                      }
                       : m,
                   ),
                 };
               });
             });
+            stopTypewriter();
             setIsStreaming(false);
             setIsLoading(false);
           },

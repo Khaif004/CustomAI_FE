@@ -6,7 +6,7 @@ const API_BASE_URL = '';
 // Custom error class with status code
 export class ApiError extends Error {
   status: number;
-  
+
   constructor(status: number, message: string) {
     super(message);
     this.name = 'ApiError';
@@ -43,7 +43,7 @@ const getActiveToken = (): string | null => {
   // First try OAuth tokens
   const oauthToken = authTokenService.getAccessToken();
   if (oauthToken) return oauthToken;
-  
+
   // Fallback to legacy dev tokens
   return tokenService.getToken();
 };
@@ -86,7 +86,7 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
       dispatchSessionExpired();
       throw new ApiError(401, 'Unauthorized');
     }
-    
+
     const error = await response.json().catch(() => ({ detail: 'API Error' }));
     const errorMessage = error.detail || error.message || 'API Error';
     throw new ApiError(response.status, errorMessage);
