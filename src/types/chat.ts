@@ -22,6 +22,7 @@ export interface ChatMessage {
   attachment?: FileAttachment;
   generatedDocument?: GeneratedDocument;
   isGeneratingDoc?: boolean;
+  errorMessage?: string;
 }
 
 export interface ChatResponse {

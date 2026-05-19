@@ -492,11 +492,25 @@ export const ChatMessage = ({
                 formatContent(displayedText)
               )}
             </div>
-            {message.isGeneratingDoc && !message.generatedDocument && (
+            {message.isGeneratingDoc && !message.generatedDocument && !message.errorMessage && (
               <DocGeneratingCard docType={message.content} />
             )}
             {message.generatedDocument && !isStreaming && (
               <DocDownloadCard doc={message.generatedDocument} />
+            )}
+            {message.errorMessage && (
+              <div className="message-error-block">
+                <div className="message-error-header">
+                  <span className="message-error-icon">⚠</span>
+                  <span className="message-error-title">Something went wrong</span>
+                </div>
+                <p className="message-error-body">{message.errorMessage}</p>
+                {onRegenerate && isLastAssistant && (
+                  <button className="message-error-retry" onClick={onRegenerate}>
+                    ↺ Try again
+                  </button>
+                )}
+              </div>
             )}
             {!isStreaming && (
             <div className="message-actions">

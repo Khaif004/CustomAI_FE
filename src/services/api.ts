@@ -1,6 +1,37 @@
 import type { ChatResponse, AuthResponse, User } from '../types/chat';
 import { authTokenService, refreshAccessToken } from '../hooks/useOAuth2';
 
+// Map HTTP status codes to user-friendly messages
+const friendlyHttpError = (status: number, detail?: string): string => {
+  if (detail) return detail;
+  switch (status) {
+    case 400: return 'Invalid request. Please check your input and try again.';
+    case 401: return 'Your session has expired. Please sign in again.';
+    case 403: return 'You don\'t have permission to perform this action.';
+    case 404: return 'The requested resource was not found.';
+    case 413: return 'Your message or file is too large. Please try a smaller one.';
+    case 422: return 'The server could not process your request. Please try again.';
+    case 429: return 'Too many requests. Please wait a moment before trying again.';
+    case 500: return 'The server encountered an error. Please try again shortly.';
+    case 502: return 'The AI service is temporarily unavailable. Please try again.';
+    case 503: return 'The chat service is currently unavailable. Please try again in a moment.';
+    case 504: return 'The request timed out. The AI service may be busy — please try again.';
+    default:  return `An unexpected error occurred (${status}). Please try again.`;
+  }
+};
+
+// Friendly message for network-level failures (fetch throws before getting a response)
+const friendlyNetworkError = (err: unknown): string => {
+  const msg = err instanceof Error ? err.message : '';
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network'))
+    return 'Network error. Please check your internet connection and try again.';
+  if (msg.includes('abort') || msg.includes('AbortError'))
+    return 'Request was cancelled.';
+  if (msg.includes('timeout') || msg.includes('TimeoutError'))
+    return 'The request timed out. Please try again.';
+  return msg || 'An unexpected error occurred. Please try again.';
+};
+
 const API_BASE_URL = '';
 
 // Custom error class with status code
@@ -87,8 +118,8 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const error = await response.json().catch(() => ({ detail: 'API Error' }));
-    const errorMessage = error.detail || error.message || 'API Error';
+    const error = await response.json().catch(() => ({ detail: '' }));
+    const errorMessage = friendlyHttpError(response.status, error.detail || error.message);
     throw new ApiError(response.status, errorMessage);
   }
 
@@ -188,43 +219,49 @@ export const chatApi = {
         dispatchSessionExpired();
         throw new ApiError(401, 'Session expired');
       }
-      const error = await response.json().catch(() => ({ detail: 'Stream error' }));
-      throw new ApiError(response.status, error.detail || 'Stream error');
+      const error = await response.json().catch(() => ({ detail: '' }));
+      throw new ApiError(response.status, friendlyHttpError(response.status, error.detail || error.message));
     }
 
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === 'chunk') {
-              onChunk(data.content);
-            } else if (data.type === 'done') {
-              onDone({ model: data.model, response_time: data.response_time });
-            } else if (data.type === 'document') {
-              onDocument?.(data);
-            } else if (data.type === 'doc_generating') {
-              onDocGenerating?.(data.doc_type);
-            } else if (data.type === 'document_error') {
-              onDocument?.({ doc_type: 'error', filename: '', title: data.message || 'Document generation failed', content_base64: '' });
-            } else if (data.type === 'error') {
-              onError(data.message);
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'chunk') {
+                onChunk(data.content);
+              } else if (data.type === 'done') {
+                onDone({ model: data.model, response_time: data.response_time });
+              } else if (data.type === 'document') {
+                onDocument?.(data);
+              } else if (data.type === 'doc_generating') {
+                onDocGenerating?.(data.doc_type);
+              } else if (data.type === 'document_error') {
+                onDocument?.({ doc_type: 'error', filename: '', title: data.message || 'Document generation failed', content_base64: '' });
+              } else if (data.type === 'error') {
+                onError(data.message || 'The server reported an error.');
+              }
+            } catch (parseErr) {
+              console.warn('[SSE] Failed to parse event:', line, parseErr);
             }
-          } catch {
           }
         }
       }
+    } catch (readErr) {
+      if (readErr instanceof DOMException && readErr.name === 'AbortError') throw readErr;
+      onError(friendlyNetworkError(readErr));
     }
   },
 

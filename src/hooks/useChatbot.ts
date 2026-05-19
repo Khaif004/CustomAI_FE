@@ -363,7 +363,32 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (errorMsg: string) => {
-            setError(errorMsg);
+            // Pin error inline on the assistant bubble; keep the user message so they can retry.
+            stopTypewriter();
+            setConversations((prev) =>
+              prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                if (existingMsg) {
+                  return {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId
+                        ? { ...m, isGeneratingDoc: false, errorMessage: errorMsg }
+                        : m,
+                    ),
+                  };
+                }
+                return {
+                  ...c,
+                  messages: [
+                    ...c.messages,
+                    { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), errorMessage: errorMsg },
+                  ],
+                  updatedAt: new Date(),
+                };
+              }),
+            );
             setIsStreaming(false);
             setIsLoading(false);
           },
@@ -421,24 +446,37 @@ export const useChatbot = (appId?: string | null) => {
           tokenService.clearTokens();
           authTokenService.clearTokens();
           window.dispatchEvent(new CustomEvent('session-expired'));
+          setIsStreaming(false);
         } else {
-          setError(message);
+          // Show inline error on the assistant bubble; preserve user message for retry.
+          stopTypewriter();
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id !== currentConversationId) return c;
+              const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+              if (existingMsg) {
+                return {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMessageId
+                      ? { ...m, isGeneratingDoc: false, errorMessage: message }
+                      : m,
+                  ),
+                };
+              }
+              // No assistant bubble yet — add one with just the error
+              return {
+                ...c,
+                messages: [
+                  ...c.messages,
+                  { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), errorMessage: message },
+                ],
+                updatedAt: new Date(),
+              };
+            }),
+          );
+          setIsStreaming(false);
         }
-
-        // Remove user message and any partial assistant message on error
-        setConversations((prev) => {
-          return prev.map((c) => {
-            if (c.id !== currentConversationId) return c;
-            return {
-              ...c,
-              messages: c.messages.filter(
-                (m) =>
-                  m.id !== userMessage.id && m.id !== assistantMessageId,
-              ),
-            };
-          });
-        });
-        setIsStreaming(false);
       } finally {
         setIsLoading(false);
       }
@@ -568,7 +606,29 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (errorMsg: string) => {
-            setError(errorMsg);
+            stopTypewriter();
+            setConversations((prev) =>
+              prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                if (existingMsg) {
+                  return {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId ? { ...m, errorMessage: errorMsg } : m,
+                    ),
+                  };
+                }
+                return {
+                  ...c,
+                  messages: [
+                    ...c.messages,
+                    { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), errorMessage: errorMsg },
+                  ],
+                  updatedAt: new Date(),
+                };
+              }),
+            );
             setIsStreaming(false);
             setIsLoading(false);
           },

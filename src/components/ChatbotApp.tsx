@@ -24,6 +24,7 @@ export const ChatbotApp = () => {
     currentConversation,
     isLoading,
     isStreaming,
+    error,
     isAuthenticated,
     sendMessage,
     sendMessageWithFile,
@@ -37,6 +38,8 @@ export const ChatbotApp = () => {
     regenerateLastResponse,
     reactToMessage,
   } = useChatbot(appId);
+
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
 
   const [inputValue, setInputValue] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -279,6 +282,20 @@ export const ChatbotApp = () => {
             </button>
           </div>
         </div>
+
+        {error && error !== dismissedError && (
+          <div className="app-error-banner" role="alert">
+            <span className="app-error-icon">⚠</span>
+            <span className="app-error-text">{error}</span>
+            <button
+              className="app-error-dismiss"
+              onClick={() => setDismissedError(error)}
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <div className="messages-container" ref={messagesContainerRef}>
           {currentConversation.messages.length === 0 ? (

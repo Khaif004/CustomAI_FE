@@ -204,7 +204,6 @@
     line-height: 1.6;
   }
 
-  // Horizontal rule
   hr {
     border: none;
     height: 0.0625rem;
@@ -212,7 +211,6 @@
     margin: 1rem 0;
   }
 
-  // Tables
   .table-wrapper {
     overflow-x: auto;
     margin: 0.75rem 0;
@@ -349,6 +347,60 @@
     stroke: currentColor;
     stroke-width: 2;
     fill: none;
+  }
+}
+
+// ── Inline message error block ────────────────────────────────────────────────
+.message-error-block {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--error);
+
+  .message-error-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .message-error-icon {
+    font-size: 0.85rem;
+    color: var(--error);
+  }
+
+  .message-error-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--error);
+  }
+
+  .message-error-body {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin: 0 0 0.6rem;
+    line-height: 1.5;
+  }
+
+  .message-error-retry {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+
+    &:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
   }
 }
 
