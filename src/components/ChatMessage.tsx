@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import type { ChatMessage as ChatMessageType } from "../types/chat";
+import type { ChatMessage as ChatMessageType, GeneratedDocument } from "../types/chat";
 import CopyIcon from "../assets/copyIcon.svg?react";
 import TickIcon from "../assets/tickIcon.svg?react";
 import EditIcon from "../assets/editIcon.svg?react";
@@ -8,6 +8,96 @@ import RegenerateIcon from "../assets/regenerateIcon.svg?react";
 import ThumbsUpIcon from "../assets/thumbsUpIcon.svg?react";
 import ThumbsDownIcon from "../assets/thumbsDownIcon.svg?react";
 import hljs from "highlight.js";
+
+const DOC_META: Record<string, { icon: string; label: string; mime: string }> = {
+  word:  { icon: "📄", label: "Word Document", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  pdf:   { icon: "📕", label: "PDF Document",  mime: "application/pdf" },
+  excel: { icon: "📊", label: "Excel Spreadsheet", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+};
+
+const DOC_GEN_STEPS = [
+  "Analysing your request…",
+  "Structuring sections…",
+  "Writing content…",
+  "Formatting document…",
+  "Almost ready…",
+];
+
+const DocGeneratingCard = ({ docType: _docType }: { docType?: string }) => {
+  const [stepIdx, setStepIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    // Fade out → advance step → fade in, cycling every 1.8 s
+    const cycle = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setStepIdx(i => (i + 1) % DOC_GEN_STEPS.length);
+        setVisible(true);
+      }, 400);
+    }, 1800);
+    return () => clearInterval(cycle);
+  }, []);
+
+  return (
+    <div className="doc-generating-card">
+      <div className="doc-gen-icon-wrap">
+        <span className="doc-gen-orbit-ring" />
+        <span className="doc-gen-icon">✦</span>
+      </div>
+      <div className="doc-gen-text-wrap">
+        <span className={`doc-gen-step${visible ? " doc-gen-step--visible" : ""}`}>
+          {DOC_GEN_STEPS[stepIdx]}
+        </span>
+        <div className="doc-gen-bar">
+          <span className="doc-gen-bar-fill" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DocDownloadCard = ({ doc }: { doc: GeneratedDocument }) => {
+  if (doc.doc_type === 'error') {
+    return (
+      <div className="doc-download-card doc-download-error">
+        <div className="doc-download-icon">⚠️</div>
+        <div className="doc-download-info">
+          <div className="doc-download-title">Document generation failed</div>
+          <div className="doc-download-meta">{doc.title}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const meta = DOC_META[doc.doc_type] ?? { icon: "📎", label: "Document", mime: "application/octet-stream" };
+
+  const handleDownload = () => {
+    const bytes = Uint8Array.from(atob(doc.content_base64), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: meta.mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="doc-download-card">
+      <div className="doc-download-icon">{meta.icon}</div>
+      <div className="doc-download-info">
+        <div className="doc-download-title">{doc.title}</div>
+        <div className="doc-download-meta">{meta.label} · {doc.filename}</div>
+      </div>
+      <button className="doc-download-btn" onClick={handleDownload} title="Download">
+        ⬇ Download
+      </button>
+    </div>
+  );
+};
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -402,6 +492,12 @@ export const ChatMessage = ({
                 formatContent(displayedText)
               )}
             </div>
+            {message.isGeneratingDoc && !message.generatedDocument && (
+              <DocGeneratingCard docType={message.content} />
+            )}
+            {message.generatedDocument && !isStreaming && (
+              <DocDownloadCard doc={message.generatedDocument} />
+            )}
             {!isStreaming && (
             <div className="message-actions">
               <button className="message-action-btn" title="Copy" onClick={handleCopyMessage}>

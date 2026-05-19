@@ -43,6 +43,7 @@ export const ChatbotApp = () => {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("theme");
     if (saved === "light" || saved === "dark") return saved;

@@ -4,6 +4,13 @@ export interface FileAttachment {
   type: string;
 }
 
+export interface GeneratedDocument {
+  doc_type: 'word' | 'pdf' | 'excel' | 'error';
+  filename: string;
+  title: string;
+  content_base64: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -13,6 +20,8 @@ export interface ChatMessage {
   responseTime?: number;
   reaction?: 'thumbs-up' | 'thumbs-down' | null;
   attachment?: FileAttachment;
+  generatedDocument?: GeneratedDocument;
+  isGeneratingDoc?: boolean;
 }
 
 export interface ChatResponse {

@@ -156,6 +156,8 @@ export const chatApi = {
     onError: (error: string) => void,
     signal?: AbortSignal,
     appId?: string | null,
+    onDocument?: (doc: { doc_type: string; filename: string; title: string; content_base64: string }) => void,
+    onDocGenerating?: (docType: string) => void,
   ) => {
     if (authTokenService.getTokens() && authTokenService.isExpired()) {
       try {
@@ -210,6 +212,12 @@ export const chatApi = {
               onChunk(data.content);
             } else if (data.type === 'done') {
               onDone({ model: data.model, response_time: data.response_time });
+            } else if (data.type === 'document') {
+              onDocument?.(data);
+            } else if (data.type === 'doc_generating') {
+              onDocGenerating?.(data.doc_type);
+            } else if (data.type === 'document_error') {
+              onDocument?.({ doc_type: 'error', filename: '', title: data.message || 'Document generation failed', content_base64: '' });
             } else if (data.type === 'error') {
               onError(data.message);
             }
@@ -233,6 +241,46 @@ export const chatApi = {
       body: JSON.stringify({ message }),
     });
     return result.title;
+  },
+
+  generateDocument: async (
+    topic: string,
+    docType: 'word' | 'pdf' | 'excel',
+    additionalContext?: string | null,
+    appId?: string | null,
+  ): Promise<{ blob: Blob; filename: string }> => {
+    if (authTokenService.getTokens() && authTokenService.isExpired()) {
+      try { await refreshAccessToken(); } catch {
+        dispatchSessionExpired();
+        throw new ApiError(401, 'Session expired');
+      }
+    }
+    const token = getActiveToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE_URL}/api/documents/generate`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        topic,
+        doc_type: docType,
+        ...(additionalContext ? { additional_context: additionalContext } : {}),
+        ...(appId ? { app_id: appId } : {}),
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) { dispatchSessionExpired(); throw new ApiError(401, 'Session expired'); }
+      const err = await response.json().catch(() => ({ detail: 'Document generation failed' }));
+      throw new ApiError(response.status, err.detail || 'Document generation failed');
+    }
+
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `document.${docType === 'word' ? 'docx' : docType === 'excel' ? 'xlsx' : 'pdf'}`;
+    const blob = await response.blob();
+    return { blob, filename };
   },
 
   uploadFile: async (

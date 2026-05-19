@@ -369,6 +369,42 @@ export const useChatbot = (appId?: string | null) => {
           },
           abortControllerRef.current?.signal,
           appId,
+          (doc) => {
+            setConversations((prev) =>
+              prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                return {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMessageId
+                      ? { ...m, isGeneratingDoc: false, generatedDocument: { doc_type: doc.doc_type as any, filename: doc.filename, title: doc.title, content_base64: doc.content_base64 } }
+                      : m,
+                  ),
+                };
+              }),
+            );
+          },
+          (docType: string) => {
+            // Pre-create the assistant message so the spinner shows immediately
+            setIsStreaming(true);
+            typewriterCtxRef.current = { msgId: assistantMessageId, convId: currentConversationId };
+            setConversations((prev) =>
+              prev.map((c) => {
+                if (c.id !== currentConversationId) return c;
+                const exists = c.messages.find((m) => m.id === assistantMessageId);
+                if (exists) return c;
+                return {
+                  ...c,
+                  messages: [
+                    ...c.messages,
+                    { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), isGeneratingDoc: true },
+                  ],
+                  updatedAt: new Date(),
+                };
+              }),
+            );
+            void docType; // used by backend, kept for future labelling
+          },
         );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
