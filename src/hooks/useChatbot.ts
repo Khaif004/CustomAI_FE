@@ -33,13 +33,19 @@ export const useChatbot = (appId?: string | null) => {
   const [isAuthenticated, setIsAuthenticated] = useState(
     checkAuthentication(),
   );
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // Per-conversation abort controllers — each conv's stream can be stopped independently.
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  // Per-conversation generation counters — guards against stale callbacks on re-send.
+  const streamGenerationsRef = useRef<Map<string, number>>(new Map());
+  // Mutable ref that always holds the live currentConversationId for use inside closures.
+  const currentConvIdRef = useRef<string>(currentConversationId);
   const pendingTextRef = useRef<string>('');
   const typewriterRunningRef = useRef<boolean>(false);
   const typewriterCtxRef = useRef<{ msgId: string; convId: string } | null>(null);
   const streamDoneRef = useRef<boolean>(false);
   const streamDoneCallbackRef = useRef<(() => void) | null>(null);
   const typewriterWorkerRef = useRef<Worker | null>(null);
+  const prevConvIdRef = useRef<string>(currentConversationId);
 
   useEffect(() => {
     const code = `
@@ -177,6 +183,20 @@ export const useChatbot = (appId?: string | null) => {
     localStorage.setItem("currentConversation", currentConversationId);
   }, [currentConversationId]);
 
+
+  useEffect(() => {
+    currentConvIdRef.current = currentConversationId;
+  }, [currentConversationId]);
+
+  useEffect(() => {
+    if (prevConvIdRef.current === currentConversationId) return;
+    prevConvIdRef.current = currentConversationId;
+    stopTypewriter();
+    const hasActiveStream = abortControllersRef.current.has(currentConversationId);
+    setIsStreaming(hasActiveStream);
+    setIsLoading(hasActiveStream);
+  }, [currentConversationId, stopTypewriter]);
+
   useEffect(() => {
     return () => {
       typewriterWorkerRef.current?.postMessage('stop');
@@ -201,7 +221,7 @@ export const useChatbot = (appId?: string | null) => {
   }, []);
 
   const logout = useCallback(() => {
-    oauthLogout(); // This clears tokens and navigates to /login
+    oauthLogout();
   }, []);
 
   const refreshAuth = useCallback(async (): Promise<boolean> => {
@@ -325,23 +345,74 @@ export const useChatbot = (appId?: string | null) => {
       setIsLoading(true);
       setError(null);
 
+      const existingCtrl = abortControllersRef.current.get(currentConversationId);
+      if (existingCtrl) {
+        existingCtrl.abort();
+        abortControllersRef.current.delete(currentConversationId);
+      }
+      if (!typewriterCtxRef.current || typewriterCtxRef.current.convId === currentConversationId) {
+        pendingTextRef.current = '';
+        streamDoneRef.current = false;
+        streamDoneCallbackRef.current = null;
+        if (typewriterRunningRef.current) {
+          typewriterWorkerRef.current?.postMessage('stop');
+          typewriterRunningRef.current = false;
+          typewriterCtxRef.current = null;
+        }
+      }
+
+      const convIdAtSendTime = currentConversationId;
+      const gen = (streamGenerationsRef.current.get(convIdAtSendTime) || 0) + 1;
+      streamGenerationsRef.current.set(convIdAtSendTime, gen);
+      const myGen = gen;
+
       const assistantMessageId = Math.random().toString(36).slice(2);
-      abortControllerRef.current = new AbortController();
+      const controller = new AbortController();
+      abortControllersRef.current.set(convIdAtSendTime, controller);
 
       try {
         await chatApi.streamMessage(
           content,
           currentConversation.messages,
           (chunk: string) => {
-            setIsStreaming(true);
-            pendingTextRef.current += chunk;
-            startTypewriter(assistantMessageId, currentConversationId);
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (currentConvIdRef.current === convIdAtSendTime) {
+              setIsStreaming(true);
+              pendingTextRef.current += chunk;
+              startTypewriter(assistantMessageId, convIdAtSendTime);
+            } else {
+              setConversations((prev) =>
+                prev.map((c) => {
+                  if (c.id !== convIdAtSendTime) return c;
+                  const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                  if (existingMsg) {
+                    return {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === assistantMessageId ? { ...m, content: m.content + chunk } : m,
+                      ),
+                    };
+                  }
+                  return {
+                    ...c,
+                    messages: [
+                      ...c.messages,
+                      { id: assistantMessageId, role: 'assistant' as const, content: chunk, timestamp: new Date() },
+                    ],
+                    updatedAt: new Date(),
+                  };
+                }),
+              );
+            }
           },
           (metadata) => {
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            abortControllersRef.current.delete(convIdAtSendTime);
+            const isForeground = currentConvIdRef.current === convIdAtSendTime;
             const finish = () => {
               setConversations((prev) =>
                 prev.map((c) => {
-                  if (c.id !== currentConversationId) return c;
+                  if (c.id !== convIdAtSendTime) return c;
                   return {
                     ...c,
                     messages: c.messages.map((m) =>
@@ -352,10 +423,12 @@ export const useChatbot = (appId?: string | null) => {
                   };
                 }),
               );
-              setIsStreaming(false);
-              setIsLoading(false);
+              if (isForeground) {
+                setIsStreaming(false);
+                setIsLoading(false);
+              }
             };
-            if (typewriterRunningRef.current) {
+            if (typewriterRunningRef.current && isForeground) {
               streamDoneRef.current = true;
               streamDoneCallbackRef.current = finish;
             } else {
@@ -363,11 +436,14 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (errorMsg: string) => {
-            // Pin error inline on the assistant bubble; keep the user message so they can retry.
-            stopTypewriter();
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            abortControllersRef.current.delete(convIdAtSendTime);
+            if (currentConvIdRef.current === convIdAtSendTime) {
+              stopTypewriter();
+            }
             setConversations((prev) =>
               prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
+                if (c.id !== convIdAtSendTime) return c;
                 const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
                 if (existingMsg) {
                   return {
@@ -389,15 +465,18 @@ export const useChatbot = (appId?: string | null) => {
                 };
               }),
             );
-            setIsStreaming(false);
-            setIsLoading(false);
+            if (currentConvIdRef.current === convIdAtSendTime) {
+              setIsStreaming(false);
+              setIsLoading(false);
+            }
           },
-          abortControllerRef.current?.signal,
+          controller.signal,
           appId,
           (doc) => {
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
             setConversations((prev) =>
               prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
+                if (c.id !== convIdAtSendTime) return c;
                 return {
                   ...c,
                   messages: c.messages.map((m) =>
@@ -410,12 +489,14 @@ export const useChatbot = (appId?: string | null) => {
             );
           },
           (docType: string) => {
-            // Pre-create the assistant message so the spinner shows immediately
-            setIsStreaming(true);
-            typewriterCtxRef.current = { msgId: assistantMessageId, convId: currentConversationId };
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (currentConvIdRef.current === convIdAtSendTime) {
+              setIsStreaming(true);
+            }
+            typewriterCtxRef.current = { msgId: assistantMessageId, convId: convIdAtSendTime };
             setConversations((prev) =>
               prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
+                if (c.id !== convIdAtSendTime) return c;
                 const exists = c.messages.find((m) => m.id === assistantMessageId);
                 if (exists) return c;
                 return {
@@ -428,13 +509,16 @@ export const useChatbot = (appId?: string | null) => {
                 };
               }),
             );
-            void docType; // used by backend, kept for future labelling
+            void docType;
           },
         );
       } catch (err) {
+        abortControllersRef.current.delete(convIdAtSendTime);
         if (err instanceof DOMException && err.name === "AbortError") {
-          setIsStreaming(false);
-          setIsLoading(false);
+          if (currentConvIdRef.current === convIdAtSendTime) {
+            setIsStreaming(false);
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -446,13 +530,16 @@ export const useChatbot = (appId?: string | null) => {
           tokenService.clearTokens();
           authTokenService.clearTokens();
           window.dispatchEvent(new CustomEvent('session-expired'));
-          setIsStreaming(false);
+          if (currentConvIdRef.current === convIdAtSendTime) {
+            setIsStreaming(false);
+          }
         } else {
-          // Show inline error on the assistant bubble; preserve user message for retry.
-          stopTypewriter();
+          if (currentConvIdRef.current === convIdAtSendTime) {
+            stopTypewriter();
+          }
           setConversations((prev) =>
             prev.map((c) => {
-              if (c.id !== currentConversationId) return c;
+              if (c.id !== convIdAtSendTime) return c;
               const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
               if (existingMsg) {
                 return {
@@ -464,7 +551,6 @@ export const useChatbot = (appId?: string | null) => {
                   ),
                 };
               }
-              // No assistant bubble yet — add one with just the error
               return {
                 ...c,
                 messages: [
@@ -475,7 +561,9 @@ export const useChatbot = (appId?: string | null) => {
               };
             }),
           );
-          setIsStreaming(false);
+          if (currentConvIdRef.current === convIdAtSendTime) {
+            setIsStreaming(false);
+          }
         }
       } finally {
         setIsLoading(false);
@@ -484,14 +572,12 @@ export const useChatbot = (appId?: string | null) => {
     [currentConversationId, isAuthenticated, currentConversation],
   );
 
-  // New conversation
   const newConversation = useCallback(() => {
     const id = Math.random().toString(36).slice(2);
     setCurrentConversationId(id);
     setError(null);
   }, []);
 
-  // Delete conversation
   const deleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => prev.filter((c) => c.id !== id));
@@ -502,7 +588,6 @@ export const useChatbot = (appId?: string | null) => {
     [currentConversationId, newConversation],
   );
 
-  // Clear all conversations
   const clearAll = useCallback(() => {
     if (confirm("Clear all conversations?")) {
       setConversations([]);
@@ -512,16 +597,16 @@ export const useChatbot = (appId?: string | null) => {
   }, [newConversation]);
 
   const stopGenerating = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    const ctrl = abortControllersRef.current.get(currentConversationId);
+    if (ctrl) {
+      ctrl.abort();
+      abortControllersRef.current.delete(currentConversationId);
       stopTypewriter();
       setIsStreaming(false);
       setIsLoading(false);
     }
-  }, [stopTypewriter]);
+  }, [currentConversationId, stopTypewriter]);
 
-  // Send message with file attachment
   const sendMessageWithFile = useCallback(
     async (file: File, message: string) => {
       if (!(await ensureAuth())) {
@@ -567,8 +652,30 @@ export const useChatbot = (appId?: string | null) => {
       setIsLoading(true);
       setError(null);
 
+      const existingFileCtrl = abortControllersRef.current.get(currentConversationId);
+      if (existingFileCtrl) {
+        existingFileCtrl.abort();
+        abortControllersRef.current.delete(currentConversationId);
+      }
+      if (!typewriterCtxRef.current || typewriterCtxRef.current.convId === currentConversationId) {
+        pendingTextRef.current = '';
+        streamDoneRef.current = false;
+        streamDoneCallbackRef.current = null;
+        if (typewriterRunningRef.current) {
+          typewriterWorkerRef.current?.postMessage('stop');
+          typewriterRunningRef.current = false;
+          typewriterCtxRef.current = null;
+        }
+      }
+
+      const convIdAtSendTime = currentConversationId;
+      const gen = (streamGenerationsRef.current.get(convIdAtSendTime) || 0) + 1;
+      streamGenerationsRef.current.set(convIdAtSendTime, gen);
+      const myGen = gen;
+
       const assistantMessageId = Math.random().toString(36).slice(2);
-      abortControllerRef.current = new AbortController();
+      const controller = new AbortController();
+      abortControllersRef.current.set(convIdAtSendTime, controller);
 
       try {
         await chatApi.uploadFile(
@@ -576,15 +683,44 @@ export const useChatbot = (appId?: string | null) => {
           message,
           currentConversation.messages,
           (chunk: string) => {
-            setIsStreaming(true);
-            pendingTextRef.current += chunk;
-            startTypewriter(assistantMessageId, currentConversationId);
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (currentConvIdRef.current === convIdAtSendTime) {
+              setIsStreaming(true);
+              pendingTextRef.current += chunk;
+              startTypewriter(assistantMessageId, convIdAtSendTime);
+            } else {
+              setConversations((prev) =>
+                prev.map((c) => {
+                  if (c.id !== convIdAtSendTime) return c;
+                  const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                  if (existingMsg) {
+                    return {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === assistantMessageId ? { ...m, content: m.content + chunk } : m,
+                      ),
+                    };
+                  }
+                  return {
+                    ...c,
+                    messages: [
+                      ...c.messages,
+                      { id: assistantMessageId, role: 'assistant' as const, content: chunk, timestamp: new Date() },
+                    ],
+                    updatedAt: new Date(),
+                  };
+                }),
+              );
+            }
           },
           (metadata) => {
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            abortControllersRef.current.delete(convIdAtSendTime);
+            const isForeground = currentConvIdRef.current === convIdAtSendTime;
             const finish = () => {
               setConversations((prev) =>
                 prev.map((c) => {
-                  if (c.id !== currentConversationId) return c;
+                  if (c.id !== convIdAtSendTime) return c;
                   return {
                     ...c,
                     messages: c.messages.map((m) =>
@@ -595,10 +731,12 @@ export const useChatbot = (appId?: string | null) => {
                   };
                 }),
               );
-              setIsStreaming(false);
-              setIsLoading(false);
+              if (isForeground) {
+                setIsStreaming(false);
+                setIsLoading(false);
+              }
             };
-            if (typewriterRunningRef.current) {
+            if (typewriterRunningRef.current && isForeground) {
               streamDoneRef.current = true;
               streamDoneCallbackRef.current = finish;
             } else {
@@ -606,10 +744,14 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (errorMsg: string) => {
-            stopTypewriter();
+            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            abortControllersRef.current.delete(convIdAtSendTime);
+            if (currentConvIdRef.current === convIdAtSendTime) {
+              stopTypewriter();
+            }
             setConversations((prev) =>
               prev.map((c) => {
-                if (c.id !== currentConversationId) return c;
+                if (c.id !== convIdAtSendTime) return c;
                 const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
                 if (existingMsg) {
                   return {
@@ -629,11 +771,13 @@ export const useChatbot = (appId?: string | null) => {
                 };
               }),
             );
-            setIsStreaming(false);
-            setIsLoading(false);
+            if (currentConvIdRef.current === convIdAtSendTime) {
+              setIsStreaming(false);
+              setIsLoading(false);
+            }
           },
           undefined,
-          abortControllerRef.current?.signal,
+          controller.signal,
         );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {

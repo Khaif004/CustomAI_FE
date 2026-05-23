@@ -1,9 +1,12 @@
 import type { ChatResponse, AuthResponse, User } from '../types/chat';
 import { authTokenService, refreshAccessToken } from '../hooks/useOAuth2';
 
-// Map HTTP status codes to user-friendly messages
-const friendlyHttpError = (status: number, detail?: string): string => {
-  if (detail) return detail;
+const friendlyHttpError = (status: number, detail?: unknown): string => {
+  if (typeof detail === 'string' && detail) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0] as Record<string, unknown>;
+    if (typeof first?.msg === 'string') return `Validation error: ${first.msg}`;
+  }
   switch (status) {
     case 400: return 'Invalid request. Please check your input and try again.';
     case 401: return 'Your session has expired. Please sign in again.';
@@ -20,7 +23,6 @@ const friendlyHttpError = (status: number, detail?: string): string => {
   }
 };
 
-// Friendly message for network-level failures (fetch throws before getting a response)
 const friendlyNetworkError = (err: unknown): string => {
   const msg = err instanceof Error ? err.message : '';
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network'))
@@ -34,7 +36,6 @@ const friendlyNetworkError = (err: unknown): string => {
 
 const API_BASE_URL = '';
 
-// Custom error class with status code
 export class ApiError extends Error {
   status: number;
 
@@ -45,7 +46,6 @@ export class ApiError extends Error {
   }
 }
 
-// Legacy token service for backward compatibility (dev mode)
 export const tokenService = {
   getToken: () => localStorage.getItem('access_token'),
   getRefreshToken: () => localStorage.getItem('refresh_token'),
@@ -69,23 +69,18 @@ export const tokenService = {
   },
 };
 
-// Get active token (prefers OAuth tokens)
 const getActiveToken = (): string | null => {
-  // First try OAuth tokens
   const oauthToken = authTokenService.getAccessToken();
   if (oauthToken) return oauthToken;
 
-  // Fallback to legacy dev tokens
   return tokenService.getToken();
 };
 
-// Dispatch a custom event so SessionManager can show the timeout modal
 const dispatchSessionExpired = () => {
   window.dispatchEvent(new CustomEvent('session-expired'));
 };
 
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  // Check if OAuth token is expired and refresh if needed
   if (authTokenService.getTokens() && authTokenService.isExpired()) {
     try {
       await refreshAccessToken();
@@ -112,7 +107,6 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   });
 
   if (!response.ok) {
-    // Handle 401 - token expired
     if (response.status === 401) {
       dispatchSessionExpired();
       throw new ApiError(401, 'Unauthorized');
