@@ -1,11 +1,11 @@
 export const OAUTH_CONFIG = {
-  clientId: import.meta.env.VITE_XSUAA_CLIENT_ID || '',
-  clientSecret: import.meta.env.VITE_XSUAA_CLIENT_SECRET || '',
-  authUrl: import.meta.env.VITE_XSUAA_AUTH_URL || '',
-  tokenUrl: import.meta.env.VITE_XSUAA_TOKEN_URL || '',
+  clientId: import.meta.env.VITE_XSUAA_CLIENT_ID || "",
+  clientSecret: import.meta.env.VITE_XSUAA_CLIENT_SECRET || "",
+  authUrl: import.meta.env.VITE_XSUAA_AUTH_URL || "",
+  tokenUrl: import.meta.env.VITE_XSUAA_TOKEN_URL || "",
   redirectUri: `${window.location.origin}/callback`,
-  responseType: 'code',
-  scope: 'openid',
+  responseType: "code",
+  scope: "openid",
 };
 
 interface AuthTokens {
@@ -18,28 +18,49 @@ interface AuthTokens {
 
 export const authTokenService = {
   getTokens: (): AuthTokens | null => {
-    const tokens = localStorage.getItem('authTokens');
+    const tokens = localStorage.getItem("authTokens");
     return tokens ? JSON.parse(tokens) : null;
   },
 
-  setTokens: (tokens: Omit<AuthTokens, 'expires_at'>) => {
-    const expiresAt = Date.now() + (tokens.expires_in - 50) * 1000;
+  setTokens: (tokens: Omit<AuthTokens, "expires_at">) => {
+    let expiresAt: number;
+    if (tokens.expires_in && isFinite(tokens.expires_in)) {
+      expiresAt = Date.now() + (tokens.expires_in - 50) * 1000;
+    } else {
+      try {
+        const payload = JSON.parse(atob(tokens.access_token.split(".")[1]));
+        expiresAt = payload.exp
+          ? payload.exp * 1000 - 30_000
+          : Date.now() + 3_570_000;
+      } catch {
+        expiresAt = Date.now() + 3_570_000;
+      }
+    }
     const authTokens: AuthTokens = {
       ...tokens,
       expires_at: expiresAt,
     };
-    localStorage.setItem('authTokens', JSON.stringify(authTokens));
+    localStorage.setItem("authTokens", JSON.stringify(authTokens));
   },
 
   clearTokens: () => {
-    localStorage.removeItem('authTokens');
-    localStorage.removeItem('lastActivity');
+    localStorage.removeItem("authTokens");
+    localStorage.removeItem("lastActivity");
   },
 
   isExpired: (): boolean => {
     const tokens = authTokenService.getTokens();
     if (!tokens) return true;
-    return Date.now() >= tokens.expires_at;
+    if (typeof tokens.expires_at === "number" && isFinite(tokens.expires_at)) {
+      return Date.now() >= tokens.expires_at;
+    }
+    try {
+      const payload = JSON.parse(atob(tokens.access_token.split(".")[1]));
+      if (payload.exp) return Date.now() >= payload.exp * 1000;
+    } catch (error) {
+      console.error("Error decoding JWT:", error);
+    }
+    return true;
   },
 
   getAccessToken: (): string | null => {
@@ -56,36 +77,41 @@ interface PopupWindow {
 let currentPopup: PopupWindow | null = null;
 let refreshingPromise: Promise<AuthTokens> | null = null;
 
-function openPopup(url: string, title: string, width = 600, height = 700): Window | null {
+function openPopup(
+  url: string,
+  title: string,
+  width = 600,
+  height = 700,
+): Window | null {
   const left = window.screen.width / 2 - width / 2;
   const top = window.screen.height / 2 - height / 2;
-  
+
   return window.open(
     url,
     title,
-    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
   );
 }
 
 function queryToObject(queryString: string): Record<string, string> {
   if (!queryString) return {};
-  
+
   const params: Record<string, string> = {};
-  const pairs = queryString.split('&');
-  
+  const pairs = queryString.split("&");
+
   for (const pair of pairs) {
-    const [key, value] = pair.split('=');
+    const [key, value] = pair.split("=");
     if (key) {
-      params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+      params[decodeURIComponent(key)] = decodeURIComponent(value || "");
     }
   }
-  
+
   return params;
 }
 
 async function exchangeCodeForToken(code: string): Promise<AuthTokens> {
   const params = new URLSearchParams({
-    grant_type: 'authorization_code',
+    grant_type: "authorization_code",
     code,
     redirect_uri: OAUTH_CONFIG.redirectUri,
     client_id: OAUTH_CONFIG.clientId,
@@ -93,9 +119,9 @@ async function exchangeCodeForToken(code: string): Promise<AuthTokens> {
   });
 
   const response = await fetch(OAUTH_CONFIG.tokenUrl, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      "Content-Type": "application/x-www-form-urlencoded",
     },
     body: params.toString(),
   });
@@ -123,10 +149,10 @@ export async function useOAuth2(): Promise<AuthTokens> {
   })}`;
 
   const promise = new Promise<AuthTokens>((resolve, reject) => {
-    const popup = openPopup(authUrl, 'SAP Login', 600, 700);
+    const popup = openPopup(authUrl, "SAP Login", 600, 700);
 
     if (!popup) {
-      reject(new Error('Popup blocked. Please allow popups for this site.'));
+      reject(new Error("Popup blocked. Please allow popups for this site."));
       return;
     }
 
@@ -135,7 +161,7 @@ export async function useOAuth2(): Promise<AuthTokens> {
         if (popup.closed) {
           clearInterval(intervalId);
           currentPopup = null;
-          reject(new Error('Login cancelled'));
+          reject(new Error("Login cancelled"));
           return;
         }
 
@@ -163,19 +189,20 @@ export async function useOAuth2(): Promise<AuthTokens> {
           currentPopup = null;
           reject(new Error(params.error_description || params.error));
         }
-      } catch (error) {
-
-      }
+      } catch (error) {}
     }, 500);
 
-    setTimeout(() => {
-      if (popup && !popup.closed) {
-        clearInterval(intervalId);
-        popup.close();
-        currentPopup = null;
-        reject(new Error('Login timeout'));
-      }
-    }, 5 * 60 * 1000);
+    setTimeout(
+      () => {
+        if (popup && !popup.closed) {
+          clearInterval(intervalId);
+          popup.close();
+          currentPopup = null;
+          reject(new Error("Login timeout"));
+        }
+      },
+      5 * 60 * 1000,
+    );
   });
 
   currentPopup = { window: null, promise };
@@ -189,28 +216,28 @@ export async function refreshAccessToken(): Promise<AuthTokens> {
 
   const tokens = authTokenService.getTokens();
   if (!tokens?.refresh_token) {
-    throw new Error('No refresh token available');
+    throw new Error("No refresh token available");
   }
 
   refreshingPromise = (async () => {
     try {
       const params = new URLSearchParams({
-        grant_type: 'refresh_token',
+        grant_type: "refresh_token",
         refresh_token: tokens.refresh_token,
         client_id: OAUTH_CONFIG.clientId,
         client_secret: OAUTH_CONFIG.clientSecret,
       });
 
       const response = await fetch(OAUTH_CONFIG.tokenUrl, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          "Content-Type": "application/x-www-form-urlencoded",
         },
         body: params.toString(),
       });
 
       if (!response.ok) {
-        throw new Error('Token refresh failed');
+        throw new Error("Token refresh failed");
       }
 
       const newTokens = await response.json();
@@ -227,6 +254,6 @@ export async function refreshAccessToken(): Promise<AuthTokens> {
 export function logout(): void {
   authTokenService.clearTokens();
   // Set a flag to indicate manual logout (not session timeout)
-  sessionStorage.setItem('manualLogout', 'true');
-  window.location.href = '/login';
+  sessionStorage.setItem("manualLogout", "true");
+  window.location.href = "/login";
 }

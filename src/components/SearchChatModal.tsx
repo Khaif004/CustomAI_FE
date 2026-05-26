@@ -88,7 +88,9 @@ export const SearchChatModal: React.FC<SearchChatModalProps> = ({
             ))
           ) : (
             <div className="search-modal-empty">
-              {searchQuery ? "No chats found matching your search" : "No recent chats"}
+              {searchQuery
+                ? "No chats found matching your search"
+                : "No recent chats"}
             </div>
           )}
         </div>

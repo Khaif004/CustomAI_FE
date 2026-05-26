@@ -1,10 +1,12 @@
 # Exclude Windows-built node_modules - CF does a clean Linux npm install
+
 node_modules/
 
 # Exclude source files not needed at runtime
+
 src/
 public/
-*.local
+\*.local
 .env
 .env.local
 tsconfig.json

@@ -50,7 +50,9 @@ export const ChatbotApp = () => {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("theme");
     if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
   });
   const isResizing = useRef(false);
   const userScrolledUp = useRef(false);
@@ -96,19 +98,19 @@ export const ChatbotApp = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate("/login");
     }
   }, [isAuthenticated]);
-
-
 
   const isNearBottom = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return true;
-    return container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    return (
+      container.scrollHeight - container.scrollTop - container.clientHeight <
+      100
+    );
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -131,7 +133,8 @@ export const ChatbotApp = () => {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
-  const lastMessage = currentConversation.messages[currentConversation.messages.length - 1];
+  const lastMessage =
+    currentConversation.messages[currentConversation.messages.length - 1];
   useEffect(() => {
     if (!userScrolledUp.current) {
       const container = messagesContainerRef.current;
@@ -258,11 +261,18 @@ export const ChatbotApp = () => {
             onLogout={logout}
           />
 
-          <div className="sidebar-resize-handle" onMouseDown={handleMouseDown} />
+          <div
+            className="sidebar-resize-handle"
+            onMouseDown={handleMouseDown}
+          />
         </>
       ) : (
         <div className="sidebar-collapsed">
-          <button className="sidebar-open-btn" onClick={() => setSidebarOpen(true)} title="Open sidebar">
+          <button
+            className="sidebar-open-btn"
+            onClick={() => setSidebarOpen(true)}
+            title="Open sidebar"
+          >
             <AppLogoIcon />
           </button>
         </div>
@@ -274,7 +284,15 @@ export const ChatbotApp = () => {
             {currentConversation.title || "New Chat"}
           </div>
           <div className="chat-actions">
-            <button className="icon-btn theme-toggle" onClick={toggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+            <button
+              className="icon-btn theme-toggle"
+              onClick={toggleTheme}
+              title={
+                theme === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
+            >
               {theme === "dark" ? <SunIcon /> : <MoonIcon />}
             </button>
             <button className="icon-btn" title="Settings">
@@ -321,34 +339,45 @@ export const ChatbotApp = () => {
             </div>
           ) : (
             <div className="messages-wrapper">
-              {currentConversation.messages.map((message: any, index: number) => {
-                const isLastMessage = index === currentConversation.messages.length - 1;
-                const isMessageStreaming = isLastMessage && isStreaming && message.role === 'assistant';
-                // Find the last assistant message index
-                const lastAssistantIdx = currentConversation.messages.findLastIndex(
-                  (m: any) => m.role === 'assistant',
-                );
-                const isLastAssistant = index === lastAssistantIdx;
-                return (
-                  <ChatMessage 
-                    key={message.id} 
-                    message={message}
-                    isStreaming={isMessageStreaming}
-                    isLastAssistant={isLastAssistant}
-                    onEdit={editMessage}
-                    onRegenerate={regenerateLastResponse}
-                    onReact={reactToMessage}
-                  />
-                );
-              })}
-              {isLoading && !isStreaming && currentConversation.messages.length > 0 && currentConversation.messages[currentConversation.messages.length - 1]?.role === 'user' && (
-                <div className="loading-message">
-                  <div className="loading-indicator">
-                    <span className="loading-text">Analyzing</span>
-                    <div className="loading-spinner"></div>
-                  </div>
-                </div>
+              {currentConversation.messages.map(
+                (message: any, index: number) => {
+                  const isLastMessage =
+                    index === currentConversation.messages.length - 1;
+                  const isMessageStreaming =
+                    isLastMessage &&
+                    isStreaming &&
+                    message.role === "assistant";
+                  const lastAssistantIdx =
+                    currentConversation.messages.findLastIndex(
+                      (m: any) => m.role === "assistant",
+                    );
+                  const isLastAssistant = index === lastAssistantIdx;
+                  return (
+                    <ChatMessage
+                      key={message.id}
+                      message={message}
+                      isStreaming={isMessageStreaming}
+                      isLastAssistant={isLastAssistant}
+                      onEdit={editMessage}
+                      onRegenerate={regenerateLastResponse}
+                      onReact={reactToMessage}
+                    />
+                  );
+                },
               )}
+              {isLoading &&
+                !isStreaming &&
+                currentConversation.messages.length > 0 &&
+                currentConversation.messages[
+                  currentConversation.messages.length - 1
+                ]?.role === "user" && (
+                  <div className="loading-message">
+                    <div className="loading-indicator">
+                      <span className="loading-text">Analyzing</span>
+                      <div className="loading-spinner"></div>
+                    </div>
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -374,7 +403,9 @@ export const ChatbotApp = () => {
                 <div className="file-chip">
                   <span className="file-chip-icon">📎</span>
                   <span className="file-chip-name">{attachedFile.name}</span>
-                  <span className="file-chip-size">{formatFileSize(attachedFile.size)}</span>
+                  <span className="file-chip-size">
+                    {formatFileSize(attachedFile.size)}
+                  </span>
                   <button
                     className="file-chip-remove"
                     onClick={() => {
@@ -403,7 +434,11 @@ export const ChatbotApp = () => {
                   value={inputValue}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder={attachedFile ? "Add a message about this file (optional)..." : "Ask anything"}
+                  placeholder={
+                    attachedFile
+                      ? "Add a message about this file (optional)..."
+                      : "Ask anything"
+                  }
                   rows={1}
                   disabled={isLoading}
                 />
@@ -429,7 +464,9 @@ export const ChatbotApp = () => {
                     <button
                       type="submit"
                       className="send-btn"
-                      disabled={(!inputValue.trim() && !attachedFile) || isLoading}
+                      disabled={
+                        (!inputValue.trim() && !attachedFile) || isLoading
+                      }
                       title="Send message"
                     >
                       <SendIcon />

@@ -76,19 +76,30 @@ export const ConversationSidebar = ({
   };
 
   return (
-    <aside className={`sidebar ${isOpen ? "open" : ""}`} style={width ? { width: `${width}px` } : undefined}>
+    <aside
+      className={`sidebar ${isOpen ? "open" : ""}`}
+      style={width ? { width: `${width}px` } : undefined}
+    >
       <div className="sidebar-header">
         <div className="sidebar-header-top">
           <a className="icon-menu-item" onClick={onNewChat} title="New chat">
             <NewChatIcon />
             <span>New chat</span>
           </a>
-          <button className="sidebar-collapse-btn" onClick={onToggle} title="Close sidebar">
+          <button
+            className="sidebar-collapse-btn"
+            onClick={onToggle}
+            title="Close sidebar"
+          >
             <SidebarIcon />
           </button>
         </div>
         <div className="sidebar-icon-menu">
-          <a className="icon-menu-item" onClick={() => setIsSearchModalOpen(true)} title="Search chats">
+          <a
+            className="icon-menu-item"
+            onClick={() => setIsSearchModalOpen(true)}
+            title="Search chats"
+          >
             <SearchIcon />
             <span>Search chats</span>
           </a>
@@ -99,89 +110,93 @@ export const ConversationSidebar = ({
         <div className="conversation-list">
           {conversations.length > 0 ? (
             [...conversations]
-              .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+              .sort(
+                (a, b) =>
+                  new Date(b.updatedAt).getTime() -
+                  new Date(a.updatedAt).getTime(),
+              )
               .map((conversation) => (
-              <div
-              key={conversation.id}
-              className={`conversation-item ${
-                conversation.id === currentId ? "active" : ""
-              } ${openMenuId === conversation.id ? "menu-open" : ""}`}
-              onClick={() => onSelectConversation(conversation.id)}
-            >
-              {/* <svg viewBox="0 0 24 24">
+                <div
+                  key={conversation.id}
+                  className={`conversation-item ${
+                    conversation.id === currentId ? "active" : ""
+                  } ${openMenuId === conversation.id ? "menu-open" : ""}`}
+                  onClick={() => onSelectConversation(conversation.id)}
+                >
+                  {/* <svg viewBox="0 0 24 24">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
               </svg> */}
-              <span>{getConversationTitle(conversation)}</span>
+                  <span>{getConversationTitle(conversation)}</span>
 
-              <div className="conversation-item-menu">
-                <button
-                  className="menu-trigger"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const button = e.currentTarget as HTMLButtonElement;
-                    const rect = button.getBoundingClientRect();
-                    setMenuPosition({
-                      top: rect.bottom + 4,
-                      left: rect.left,
-                    });
-                    setOpenMenuId(
-                      openMenuId === conversation.id ? null : conversation.id,
-                    );
-                  }}
-                  title="More options"
-                >
-                  <MoreDotsIcon />
-                </button>
+                  <div className="conversation-item-menu">
+                    <button
+                      className="menu-trigger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const button = e.currentTarget as HTMLButtonElement;
+                        const rect = button.getBoundingClientRect();
+                        setMenuPosition({
+                          top: rect.bottom + 4,
+                          left: rect.left,
+                        });
+                        setOpenMenuId(
+                          openMenuId === conversation.id
+                            ? null
+                            : conversation.id,
+                        );
+                      }}
+                      title="More options"
+                    >
+                      <MoreDotsIcon />
+                    </button>
 
-                {openMenuId === conversation.id && (
-                  <div
-                    className="dropdown-menu"
-                    style={{
-                      top: `${menuPosition.top}px`,
-                      left: `${menuPosition.left}px`,
-                    }}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log("Rename:", conversation.id);
-                        setOpenMenuId(null);
-                      }}
-                    >
-                      <EditIcon />
-                      Rename
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // TODO: Implement pin
-                        console.log("Pin:", conversation.id);
-                        setOpenMenuId(null);
-                      }}
-                    >
-                      <PinIcon />
-                      Pin
-                    </button>
-                    <button
-                      className="danger"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteConversation(conversation.id);
-                        setOpenMenuId(null);
-                      }}
-                    >
-                      <DeleteIcon />
-                      Delete
-                    </button>
+                    {openMenuId === conversation.id && (
+                      <div
+                        className="dropdown-menu"
+                        style={{
+                          top: `${menuPosition.top}px`,
+                          left: `${menuPosition.left}px`,
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log("Rename:", conversation.id);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          <EditIcon />
+                          Rename
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // TODO: Implement pin
+                            console.log("Pin:", conversation.id);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          <PinIcon />
+                          Pin
+                        </button>
+                        <button
+                          className="danger"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteConversation(conversation.id);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          <DeleteIcon />
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-            ))
+                </div>
+              ))
           ) : (
-            <div className="no-conversations">
-              {/* <p>No chats yet</p> */}
-            </div>
+            <div className="no-conversations">{/* <p>No chats yet</p> */}</div>
           )}
         </div>
       </div>

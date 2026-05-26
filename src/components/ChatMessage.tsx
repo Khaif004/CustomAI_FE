@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import type { ChatMessage as ChatMessageType, GeneratedDocument } from "../types/chat";
+import type {
+  ChatMessage as ChatMessageType,
+  GeneratedDocument,
+} from "../types/chat";
 import CopyIcon from "../assets/copyIcon.svg?react";
 import TickIcon from "../assets/tickIcon.svg?react";
 import EditIcon from "../assets/editIcon.svg?react";
@@ -9,11 +12,20 @@ import ThumbsUpIcon from "../assets/thumbsUpIcon.svg?react";
 import ThumbsDownIcon from "../assets/thumbsDownIcon.svg?react";
 import hljs from "highlight.js";
 
-const DOC_META: Record<string, { icon: string; label: string; mime: string }> = {
-  word:  { icon: "📄", label: "Word Document", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
-  pdf:   { icon: "📕", label: "PDF Document",  mime: "application/pdf" },
-  excel: { icon: "📊", label: "Excel Spreadsheet", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
-};
+const DOC_META: Record<string, { icon: string; label: string; mime: string }> =
+  {
+    word: {
+      icon: "📄",
+      label: "Word Document",
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    },
+    pdf: { icon: "📕", label: "PDF Document", mime: "application/pdf" },
+    excel: {
+      icon: "📊",
+      label: "Excel Spreadsheet",
+      mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    },
+  };
 
 const DOC_GEN_STEPS = [
   "Analysing your request…",
@@ -32,7 +44,7 @@ const DocGeneratingCard = ({ docType: _docType }: { docType?: string }) => {
     const cycle = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setStepIdx(i => (i + 1) % DOC_GEN_STEPS.length);
+        setStepIdx((i) => (i + 1) % DOC_GEN_STEPS.length);
         setVisible(true);
       }, 400);
     }, 1800);
@@ -46,7 +58,9 @@ const DocGeneratingCard = ({ docType: _docType }: { docType?: string }) => {
         <span className="doc-gen-icon">✦</span>
       </div>
       <div className="doc-gen-text-wrap">
-        <span className={`doc-gen-step${visible ? " doc-gen-step--visible" : ""}`}>
+        <span
+          className={`doc-gen-step${visible ? " doc-gen-step--visible" : ""}`}
+        >
           {DOC_GEN_STEPS[stepIdx]}
         </span>
         <div className="doc-gen-bar">
@@ -58,7 +72,7 @@ const DocGeneratingCard = ({ docType: _docType }: { docType?: string }) => {
 };
 
 const DocDownloadCard = ({ doc }: { doc: GeneratedDocument }) => {
-  if (doc.doc_type === 'error') {
+  if (doc.doc_type === "error") {
     return (
       <div className="doc-download-card doc-download-error">
         <div className="doc-download-icon">⚠️</div>
@@ -70,10 +84,16 @@ const DocDownloadCard = ({ doc }: { doc: GeneratedDocument }) => {
     );
   }
 
-  const meta = DOC_META[doc.doc_type] ?? { icon: "📎", label: "Document", mime: "application/octet-stream" };
+  const meta = DOC_META[doc.doc_type] ?? {
+    icon: "📎",
+    label: "Document",
+    mime: "application/octet-stream",
+  };
 
   const handleDownload = () => {
-    const bytes = Uint8Array.from(atob(doc.content_base64), c => c.charCodeAt(0));
+    const bytes = Uint8Array.from(atob(doc.content_base64), (c) =>
+      c.charCodeAt(0),
+    );
     const blob = new Blob([bytes], { type: meta.mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -90,9 +110,15 @@ const DocDownloadCard = ({ doc }: { doc: GeneratedDocument }) => {
       <div className="doc-download-icon">{meta.icon}</div>
       <div className="doc-download-info">
         <div className="doc-download-title">{doc.title}</div>
-        <div className="doc-download-meta">{meta.label} · {doc.filename}</div>
+        <div className="doc-download-meta">
+          {meta.label} · {doc.filename}
+        </div>
       </div>
-      <button className="doc-download-btn" onClick={handleDownload} title="Download">
+      <button
+        className="doc-download-btn"
+        onClick={handleDownload}
+        title="Download"
+      >
         ⬇ Download
       </button>
     </div>
@@ -105,7 +131,10 @@ interface ChatMessageProps {
   isLastAssistant?: boolean;
   onEdit?: (messageId: string, newContent: string) => void;
   onRegenerate?: () => void;
-  onReact?: (messageId: string, reaction: "thumbs-up" | "thumbs-down" | null) => void;
+  onReact?: (
+    messageId: string,
+    reaction: "thumbs-up" | "thumbs-down" | null,
+  ) => void;
 }
 
 export const ChatMessage = ({
@@ -130,12 +159,16 @@ export const ChatMessage = ({
     const labelFromUrl = (url: string): string => {
       try {
         const { hostname, pathname } = new URL(url);
-        const host = hostname.replace(/^www\./, '');
-        const slug = pathname.replace(/\/$/, '').split('/').filter(Boolean).pop();
+        const host = hostname.replace(/^www\./, "");
+        const slug = pathname
+          .replace(/\/$/, "")
+          .split("/")
+          .filter(Boolean)
+          .pop();
         if (!slug) return host;
         const readable = slug
-          .replace(/[_-]/g, ' ')
-          .replace(/\b\w/g, c => c.toUpperCase());
+          .replace(/[_-]/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
         return `${readable} – ${host}`;
       } catch {
         return url;
@@ -149,10 +182,18 @@ export const ChatMessage = ({
       const bareUrlMatch = remaining.match(/(?<!\]\()https?:\/\/[^\s)>\]"]+/);
 
       const matches = [
-        boldMatch   ? { type: 'bold',    match: boldMatch,   index: boldMatch.index! }   : null,
-        codeMatch   ? { type: 'code',    match: codeMatch,   index: codeMatch.index! }   : null,
-        mdLinkMatch ? { type: 'mdlink',  match: mdLinkMatch, index: mdLinkMatch.index! } : null,
-        bareUrlMatch? { type: 'bareurl', match: bareUrlMatch,index: bareUrlMatch.index!} : null,
+        boldMatch
+          ? { type: "bold", match: boldMatch, index: boldMatch.index! }
+          : null,
+        codeMatch
+          ? { type: "code", match: codeMatch, index: codeMatch.index! }
+          : null,
+        mdLinkMatch
+          ? { type: "mdlink", match: mdLinkMatch, index: mdLinkMatch.index! }
+          : null,
+        bareUrlMatch
+          ? { type: "bareurl", match: bareUrlMatch, index: bareUrlMatch.index! }
+          : null,
       ]
         .filter(Boolean)
         .sort((a, b) => a!.index - b!.index);
@@ -167,17 +208,17 @@ export const ChatMessage = ({
         parts.push(remaining.substring(0, first.index));
       }
 
-      if (first.type === 'bold') {
+      if (first.type === "bold") {
         parts.push(<strong key={`b${keyIdx++}`}>{first.match![1]}</strong>);
-      } else if (first.type === 'code') {
+      } else if (first.type === "code") {
         parts.push(
           <code key={`c${keyIdx++}`} className="inline-code">
             {first.match![1]}
           </code>,
         );
-      } else if (first.type === 'mdlink') {
+      } else if (first.type === "mdlink") {
         const label = first.match![1];
-        const url   = first.match![2];
+        const url = first.match![2];
         const displayLabel = label === url ? labelFromUrl(url) : label;
         parts.push(
           <a
@@ -191,7 +232,7 @@ export const ChatMessage = ({
             {displayLabel}
           </a>,
         );
-      } else if (first.type === 'bareurl') {
+      } else if (first.type === "bareurl") {
         const url = first.match![0];
         parts.push(
           <a
@@ -400,7 +441,12 @@ export const ChatMessage = ({
           </button>
         </div>
         <pre>
-          <code ref={codeRef} className={lang !== "code" ? `language-${lang}` : ""}>{code}</code>
+          <code
+            ref={codeRef}
+            className={lang !== "code" ? `language-${lang}` : ""}
+          >
+            {code}
+          </code>
         </pre>
       </div>
     );
@@ -470,31 +516,37 @@ export const ChatMessage = ({
           <>
             {message.attachment && (
               <div className="message-attachment">
-                <span className="attachment-name">{message.attachment.name}</span>
+                <span className="attachment-name">
+                  {message.attachment.name}
+                </span>
               </div>
             )}
             <div className="message-body">
               {message.role === "assistant" && showRaw ? (
                 <pre className="raw-markdown">{displayedText}</pre>
               ) : isCodeBlock ? (
-                displayedText.split("```").map((block: string, index: number) => {
-                  if (index % 2 === 0) {
-                    return <div key={index}>{formatContent(block)}</div>;
-                  }
-                  const lines = block.split("\n");
-                  const language = lines[0]?.trim() || "";
-                  const code = lines.slice(1).join("\n").replace(/\n+$/, '');
-                  return (
-                    <CodeBlock key={index} language={language} code={code} />
-                  );
-                })
+                displayedText
+                  .split("```")
+                  .map((block: string, index: number) => {
+                    if (index % 2 === 0) {
+                      return <div key={index}>{formatContent(block)}</div>;
+                    }
+                    const lines = block.split("\n");
+                    const language = lines[0]?.trim() || "";
+                    const code = lines.slice(1).join("\n").replace(/\n+$/, "");
+                    return (
+                      <CodeBlock key={index} language={language} code={code} />
+                    );
+                  })
               ) : (
                 formatContent(displayedText)
               )}
             </div>
-            {message.isGeneratingDoc && !message.generatedDocument && !message.errorMessage && (
-              <DocGeneratingCard docType={message.content} />
-            )}
+            {message.isGeneratingDoc &&
+              !message.generatedDocument &&
+              !message.errorMessage && (
+                <DocGeneratingCard docType={message.content} />
+              )}
             {message.generatedDocument && !isStreaming && (
               <DocDownloadCard doc={message.generatedDocument} />
             )}
@@ -502,73 +554,93 @@ export const ChatMessage = ({
               <div className="message-error-block">
                 <div className="message-error-header">
                   <span className="message-error-icon">⚠</span>
-                  <span className="message-error-title">Something went wrong</span>
+                  <span className="message-error-title">
+                    Something went wrong
+                  </span>
                 </div>
                 <p className="message-error-body">{message.errorMessage}</p>
                 {onRegenerate && isLastAssistant && (
-                  <button className="message-error-retry" onClick={onRegenerate}>
+                  <button
+                    className="message-error-retry"
+                    onClick={onRegenerate}
+                  >
                     ↺ Try again
                   </button>
                 )}
               </div>
             )}
             {!isStreaming && (
-            <div className="message-actions">
-              <button className="message-action-btn" title="Copy" onClick={handleCopyMessage}>
-                {copiedMessage ? (
-                  <>
-                    <TickIcon width={14} height={14} />
-                    Copied
-                  </>
-                ) : (
-                  <CopyIcon width={14} height={14} />
-                )}
-              </button>
-
-              {message.role === "user" && onEdit && (
-                <button className="message-action-btn" title="Edit message" onClick={handleStartEdit}>
-                  <EditIcon width={14} height={14} />
-                </button>
-              )}
-
-              {/* Markdown toggle - assistant messages only */}
-              {message.role === "assistant" && (
+              <div className="message-actions">
                 <button
-                  className={`message-action-btn ${showRaw ? "active" : ""}`}
-                  title={showRaw ? "Show rendered" : "Show raw markdown"}
-                  onClick={() => setShowRaw(!showRaw)}
+                  className="message-action-btn"
+                  title="Copy"
+                  onClick={handleCopyMessage}
                 >
-                  <MarkdownIcon width={14} height={14} />
+                  {copiedMessage ? (
+                    <>
+                      <TickIcon width={14} height={14} />
+                      Copied
+                    </>
+                  ) : (
+                    <CopyIcon width={14} height={14} />
+                  )}
                 </button>
-              )}
 
-              {/* Regenerate - last assistant message only */}
-              {message.role === "assistant" && isLastAssistant && onRegenerate && !isStreaming && (
-                <button className="message-action-btn" title="Regenerate response" onClick={onRegenerate}>
-                  <RegenerateIcon width={14} height={14} />
-                </button>
-              )}
+                {message.role === "user" && onEdit && (
+                  <button
+                    className="message-action-btn"
+                    title="Edit message"
+                    onClick={handleStartEdit}
+                  >
+                    <EditIcon width={14} height={14} />
+                  </button>
+                )}
 
-              {/* Reactions - assistant messages only */}
-              {message.role === "assistant" && onReact && (
-                <div className="reaction-buttons">
+                {/* Markdown toggle - assistant messages only */}
+                {message.role === "assistant" && (
                   <button
-                    className={`message-action-btn ${message.reaction === "thumbs-up" ? "reaction-active" : ""}`}
-                    title="Good response"
-                    onClick={() => onReact(message.id, "thumbs-up")}
+                    className={`message-action-btn ${showRaw ? "active" : ""}`}
+                    title={showRaw ? "Show rendered" : "Show raw markdown"}
+                    onClick={() => setShowRaw(!showRaw)}
                   >
-                    <ThumbsUpIcon width={14} height={14} />
+                    <MarkdownIcon width={14} height={14} />
                   </button>
-                  <button
-                    className={`message-action-btn ${message.reaction === "thumbs-down" ? "reaction-active" : ""}`}
-                    title="Bad response"
-                    onClick={() => onReact(message.id, "thumbs-down")}
-                  >
-                    <ThumbsDownIcon width={14} height={14} />
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+
+                {/* Regenerate - last assistant message only */}
+                {message.role === "assistant" &&
+                  isLastAssistant &&
+                  onRegenerate &&
+                  !isStreaming && (
+                    <button
+                      className="message-action-btn"
+                      title="Regenerate response"
+                      onClick={onRegenerate}
+                    >
+                      <RegenerateIcon width={14} height={14} />
+                    </button>
+                  )}
+
+                {/* Reactions - assistant messages only */}
+                {message.role === "assistant" && onReact && (
+                  <div className="reaction-buttons">
+                    <button
+                      className={`message-action-btn ${message.reaction === "thumbs-up" ? "reaction-active" : ""}`}
+                      title="Good response"
+                      onClick={() => onReact(message.id, "thumbs-up")}
+                    >
+                      <ThumbsUpIcon width={14} height={14} />
+                    </button>
+                    <button
+                      className={`message-action-btn ${message.reaction === "thumbs-down" ? "reaction-active" : ""}`}
+                      title="Bad response"
+                      onClick={() => onReact(message.id, "thumbs-down")}
+                    >
+                      <ThumbsDownIcon width={14} height={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}

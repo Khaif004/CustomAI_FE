@@ -11,11 +11,11 @@ function App() {
       <Route path="/login">
         <Login />
       </Route>
-      
+
       <Route path="/callback">
         <Callback />
       </Route>
-      
+
       <Route path="/">
         <ProtectedRoute>
           <SessionManager />

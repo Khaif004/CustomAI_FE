@@ -49,9 +49,11 @@
   width: 5rem;
   height: 5rem;
   border-radius: 50%;
-  background: linear-gradient(135deg,
-      var(--accent-primary),
-      var(--accent-hover));
+  background: linear-gradient(
+    135deg,
+    var(--accent-primary),
+    var(--accent-hover)
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -94,7 +96,9 @@
     font-size: 0.9375rem;
     color: var(--text-primary);
     background: var(--bg-secondary);
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
     box-sizing: border-box;
 
     &::placeholder {
@@ -301,9 +305,11 @@
   width: 5rem;
   height: 5rem;
   border-radius: 50%;
-  background: linear-gradient(135deg,
-      var(--accent-primary),
-      var(--accent-hover));
+  background: linear-gradient(
+    135deg,
+    var(--accent-primary),
+    var(--accent-hover)
+  );
   display: flex;
   align-items: center;
   justify-content: center;

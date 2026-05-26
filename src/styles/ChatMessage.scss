@@ -177,7 +177,9 @@
     text-decoration-thickness: 1px;
     word-break: break-word;
     cursor: pointer;
-    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+    transition:
+      color 0.15s ease,
+      text-decoration-color 0.15s ease;
 
     &:hover {
       color: var(--accent-hover, var(--accent-primary));
@@ -255,8 +257,8 @@
     border: 0.0625rem solid var(--border-light);
     overflow: hidden;
 
-    &+p,
-    p+& {
+    & + p,
+    p + & {
       margin-top: 0.5rem;
     }
 
@@ -395,7 +397,9 @@
     color: var(--text-primary);
     font-size: 0.8rem;
     cursor: pointer;
-    transition: background var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-color var(--transition-fast);
 
     &:hover {
       background: var(--bg-hover);
@@ -560,7 +564,6 @@
 :root[data-theme="dark"],
 :root:not([data-theme="light"]) {
   .code-block {
-
     .hljs,
     pre code.hljs {
       background: #1e1e1e !important;
@@ -666,7 +669,6 @@
 
 :root:not([data-theme="dark"]) {
   .code-block {
-
     .hljs,
     pre code.hljs {
       background: #f8f9fc !important;
@@ -768,7 +770,6 @@
   }
 }
 
-
 @keyframes doc-orbit {
   from {
     transform: rotate(0deg);
@@ -859,7 +860,9 @@
     font-weight: 500;
     color: var(--text-secondary);
     opacity: 0;
-    transition: opacity 0.35s ease, transform 0.35s ease;
+    transition:
+      opacity 0.35s ease,
+      transform 0.35s ease;
     transform: translateY(5px);
 
     &--visible {

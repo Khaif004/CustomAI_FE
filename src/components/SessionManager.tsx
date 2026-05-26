@@ -81,6 +81,12 @@ export function SessionManager() {
       if (showWarning) return;
       const tokens = authTokenService.getTokens();
       if (!tokens) return;
+
+      if (authTokenService.isExpired()) {
+        startCountdown();
+        return;
+      }
+
       const lastActivity = localStorage.getItem('lastActivity');
       if (!lastActivity) return;
       const idle = Date.now() - parseInt(lastActivity, 10);

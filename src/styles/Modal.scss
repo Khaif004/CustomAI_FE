@@ -21,9 +21,15 @@
   max-height: 90vh;
   overflow: hidden;
 
-  &-sm { width: 20rem; }
-  &-md { width: 31.25rem; }
-  &-lg { width: 43.75rem; }
+  &-sm {
+    width: 20rem;
+  }
+  &-md {
+    width: 31.25rem;
+  }
+  &-lg {
+    width: 43.75rem;
+  }
 }
 
 .modal-header {

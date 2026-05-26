@@ -1,7 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ChatMessage, Conversation } from "../types/chat";
 import { chatApi, authApi, tokenService, ApiError } from "../services/api";
-import { authTokenService, logout as oauthLogout, refreshAccessToken } from "./useOAuth2";
+import {
+  authTokenService,
+  logout as oauthLogout,
+  refreshAccessToken,
+} from "./useOAuth2";
 
 const STORAGE_KEY = "chatbot_conversations";
 
@@ -30,18 +34,15 @@ export const useChatbot = (appId?: string | null) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    checkAuthentication(),
-  );
-  // Per-conversation abort controllers — each conv's stream can be stopped independently.
+  const [isAuthenticated, setIsAuthenticated] = useState(checkAuthentication());
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
-  // Per-conversation generation counters — guards against stale callbacks on re-send.
   const streamGenerationsRef = useRef<Map<string, number>>(new Map());
-  // Mutable ref that always holds the live currentConversationId for use inside closures.
   const currentConvIdRef = useRef<string>(currentConversationId);
-  const pendingTextRef = useRef<string>('');
+  const pendingTextRef = useRef<string>("");
   const typewriterRunningRef = useRef<boolean>(false);
-  const typewriterCtxRef = useRef<{ msgId: string; convId: string } | null>(null);
+  const typewriterCtxRef = useRef<{ msgId: string; convId: string } | null>(
+    null,
+  );
   const streamDoneRef = useRef<boolean>(false);
   const streamDoneCallbackRef = useRef<(() => void) | null>(null);
   const typewriterWorkerRef = useRef<Worker | null>(null);
@@ -59,12 +60,15 @@ export const useChatbot = (appId?: string | null) => {
         }
       };
     `;
-    const blob = new Blob([code], { type: 'application/javascript' });
+    const blob = new Blob([code], { type: "application/javascript" });
     const url = URL.createObjectURL(blob);
     const worker = new Worker(url);
     URL.revokeObjectURL(url);
     typewriterWorkerRef.current = worker;
-    return () => { worker.terminate(); typewriterWorkerRef.current = null; };
+    return () => {
+      worker.terminate();
+      typewriterWorkerRef.current = null;
+    };
   }, []);
 
   const startTypewriter = useCallback((msgId: string, convId: string) => {
@@ -84,7 +88,7 @@ export const useChatbot = (appId?: string | null) => {
 
       if (!pending) {
         if (streamDoneRef.current) {
-          worker.postMessage('stop');
+          worker.postMessage("stop");
           typewriterRunningRef.current = false;
           typewriterCtxRef.current = null;
           streamDoneRef.current = false;
@@ -110,7 +114,12 @@ export const useChatbot = (appId?: string | null) => {
               ...c,
               messages: [
                 ...c.messages,
-                { id: ctx.msgId, role: 'assistant' as const, content: toRender, timestamp: new Date() },
+                {
+                  id: ctx.msgId,
+                  role: "assistant" as const,
+                  content: toRender,
+                  timestamp: new Date(),
+                },
               ],
               updatedAt: new Date(),
             };
@@ -125,18 +134,18 @@ export const useChatbot = (appId?: string | null) => {
       );
     };
 
-    worker.postMessage('start');
+    worker.postMessage("start");
   }, []);
 
   const stopTypewriter = useCallback(() => {
     streamDoneRef.current = false;
     streamDoneCallbackRef.current = null;
     if (typewriterRunningRef.current) {
-      typewriterWorkerRef.current?.postMessage('stop');
+      typewriterWorkerRef.current?.postMessage("stop");
       typewriterRunningRef.current = false;
     }
     const remaining = pendingTextRef.current;
-    pendingTextRef.current = '';
+    pendingTextRef.current = "";
     const ctx = typewriterCtxRef.current;
     if (remaining && ctx) {
       setConversations((prev) =>
@@ -148,7 +157,12 @@ export const useChatbot = (appId?: string | null) => {
               ...c,
               messages: [
                 ...c.messages,
-                { id: ctx.msgId, role: 'assistant' as const, content: remaining, timestamp: new Date() },
+                {
+                  id: ctx.msgId,
+                  role: "assistant" as const,
+                  content: remaining,
+                  timestamp: new Date(),
+                },
               ],
               updatedAt: new Date(),
             };
@@ -183,7 +197,6 @@ export const useChatbot = (appId?: string | null) => {
     localStorage.setItem("currentConversation", currentConversationId);
   }, [currentConversationId]);
 
-
   useEffect(() => {
     currentConvIdRef.current = currentConversationId;
   }, [currentConversationId]);
@@ -192,27 +205,33 @@ export const useChatbot = (appId?: string | null) => {
     if (prevConvIdRef.current === currentConversationId) return;
     prevConvIdRef.current = currentConversationId;
     stopTypewriter();
-    const hasActiveStream = abortControllersRef.current.has(currentConversationId);
+    const hasActiveStream = abortControllersRef.current.has(
+      currentConversationId,
+    );
     setIsStreaming(hasActiveStream);
     setIsLoading(hasActiveStream);
   }, [currentConversationId, stopTypewriter]);
 
   useEffect(() => {
     return () => {
-      typewriterWorkerRef.current?.postMessage('stop');
+      typewriterWorkerRef.current?.postMessage("stop");
     };
   }, []);
-
 
   const login = useCallback(async (username: string, password: string) => {
     try {
       setIsLoading(true);
       setError(null);
       const result = await authApi.login(username, password);
-      tokenService.setTokens(result.access_token, result.refresh_token, result.expires_in);
+      tokenService.setTokens(
+        result.access_token,
+        result.refresh_token,
+        result.expires_in,
+      );
       setIsAuthenticated(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Invalid username or password";
+      const message =
+        err instanceof Error ? err.message : "Invalid username or password";
       setError(message);
       throw err;
     } finally {
@@ -227,7 +246,11 @@ export const useChatbot = (appId?: string | null) => {
   const refreshAuth = useCallback(async (): Promise<boolean> => {
     try {
       const result = await authApi.refreshToken();
-      tokenService.setTokens(result.access_token, result.refresh_token, result.expires_in);
+      tokenService.setTokens(
+        result.access_token,
+        result.refresh_token,
+        result.expires_in,
+      );
       setIsAuthenticated(true);
       return true;
     } catch {
@@ -245,7 +268,9 @@ export const useChatbot = (appId?: string | null) => {
         const tokens = authTokenService.getTokens()!;
         const msLeft = tokens.expires_at - Date.now();
         if (msLeft < 2 * 60 * 1000) {
-          try { await refreshAccessToken(); } catch {  }
+          try {
+            await refreshAccessToken();
+          } catch {}
         }
         setIsAuthenticated(true);
         return true;
@@ -324,7 +349,8 @@ export const useChatbot = (appId?: string | null) => {
       });
 
       if (currentConversation.messages.length === 0) {
-        const tempTitle = content.substring(0, 40).replace(/\s+\S*$/, "") + "...";
+        const tempTitle =
+          content.substring(0, 40).replace(/\s+\S*$/, "") + "...";
         const convId = currentConversationId;
         setConversations((prev) => {
           const updated = [...prev];
@@ -332,30 +358,38 @@ export const useChatbot = (appId?: string | null) => {
           if (convIndex >= 0) updated[convIndex].title = tempTitle;
           return updated;
         });
-        chatApi.generateTitle(content).then((aiTitle) => {
-          setConversations((prev) => {
-            const updated = [...prev];
-            const convIndex = updated.findIndex((c) => c.id === convId);
-            if (convIndex >= 0) updated[convIndex].title = aiTitle;
-            return updated;
-          });
-        }).catch(() => { });
+        chatApi
+          .generateTitle(content)
+          .then((aiTitle) => {
+            setConversations((prev) => {
+              const updated = [...prev];
+              const convIndex = updated.findIndex((c) => c.id === convId);
+              if (convIndex >= 0) updated[convIndex].title = aiTitle;
+              return updated;
+            });
+          })
+          .catch(() => {});
       }
 
       setIsLoading(true);
       setError(null);
 
-      const existingCtrl = abortControllersRef.current.get(currentConversationId);
+      const existingCtrl = abortControllersRef.current.get(
+        currentConversationId,
+      );
       if (existingCtrl) {
         existingCtrl.abort();
         abortControllersRef.current.delete(currentConversationId);
       }
-      if (!typewriterCtxRef.current || typewriterCtxRef.current.convId === currentConversationId) {
-        pendingTextRef.current = '';
+      if (
+        !typewriterCtxRef.current ||
+        typewriterCtxRef.current.convId === currentConversationId
+      ) {
+        pendingTextRef.current = "";
         streamDoneRef.current = false;
         streamDoneCallbackRef.current = null;
         if (typewriterRunningRef.current) {
-          typewriterWorkerRef.current?.postMessage('stop');
+          typewriterWorkerRef.current?.postMessage("stop");
           typewriterRunningRef.current = false;
           typewriterCtxRef.current = null;
         }
@@ -375,7 +409,11 @@ export const useChatbot = (appId?: string | null) => {
           content,
           currentConversation.messages,
           (chunk: string) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             if (currentConvIdRef.current === convIdAtSendTime) {
               setIsStreaming(true);
               pendingTextRef.current += chunk;
@@ -384,12 +422,16 @@ export const useChatbot = (appId?: string | null) => {
               setConversations((prev) =>
                 prev.map((c) => {
                   if (c.id !== convIdAtSendTime) return c;
-                  const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                  const existingMsg = c.messages.find(
+                    (m) => m.id === assistantMessageId,
+                  );
                   if (existingMsg) {
                     return {
                       ...c,
                       messages: c.messages.map((m) =>
-                        m.id === assistantMessageId ? { ...m, content: m.content + chunk } : m,
+                        m.id === assistantMessageId
+                          ? { ...m, content: m.content + chunk }
+                          : m,
                       ),
                     };
                   }
@@ -397,7 +439,12 @@ export const useChatbot = (appId?: string | null) => {
                     ...c,
                     messages: [
                       ...c.messages,
-                      { id: assistantMessageId, role: 'assistant' as const, content: chunk, timestamp: new Date() },
+                      {
+                        id: assistantMessageId,
+                        role: "assistant" as const,
+                        content: chunk,
+                        timestamp: new Date(),
+                      },
                     ],
                     updatedAt: new Date(),
                   };
@@ -406,7 +453,11 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (metadata) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             abortControllersRef.current.delete(convIdAtSendTime);
             const isForeground = currentConvIdRef.current === convIdAtSendTime;
             const finish = () => {
@@ -417,7 +468,11 @@ export const useChatbot = (appId?: string | null) => {
                     ...c,
                     messages: c.messages.map((m) =>
                       m.id === assistantMessageId
-                        ? { ...m, modelUsed: metadata.model, responseTime: metadata.response_time }
+                        ? {
+                            ...m,
+                            modelUsed: metadata.model,
+                            responseTime: metadata.response_time,
+                          }
                         : m,
                     ),
                   };
@@ -436,7 +491,11 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (errorMsg: string) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             abortControllersRef.current.delete(convIdAtSendTime);
             if (currentConvIdRef.current === convIdAtSendTime) {
               stopTypewriter();
@@ -444,13 +503,19 @@ export const useChatbot = (appId?: string | null) => {
             setConversations((prev) =>
               prev.map((c) => {
                 if (c.id !== convIdAtSendTime) return c;
-                const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                const existingMsg = c.messages.find(
+                  (m) => m.id === assistantMessageId,
+                );
                 if (existingMsg) {
                   return {
                     ...c,
                     messages: c.messages.map((m) =>
                       m.id === assistantMessageId
-                        ? { ...m, isGeneratingDoc: false, errorMessage: errorMsg }
+                        ? {
+                            ...m,
+                            isGeneratingDoc: false,
+                            errorMessage: errorMsg,
+                          }
                         : m,
                     ),
                   };
@@ -459,7 +524,13 @@ export const useChatbot = (appId?: string | null) => {
                   ...c,
                   messages: [
                     ...c.messages,
-                    { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), errorMessage: errorMsg },
+                    {
+                      id: assistantMessageId,
+                      role: "assistant" as const,
+                      content: "",
+                      timestamp: new Date(),
+                      errorMessage: errorMsg,
+                    },
                   ],
                   updatedAt: new Date(),
                 };
@@ -473,7 +544,11 @@ export const useChatbot = (appId?: string | null) => {
           controller.signal,
           appId,
           (doc) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             setConversations((prev) =>
               prev.map((c) => {
                 if (c.id !== convIdAtSendTime) return c;
@@ -481,7 +556,16 @@ export const useChatbot = (appId?: string | null) => {
                   ...c,
                   messages: c.messages.map((m) =>
                     m.id === assistantMessageId
-                      ? { ...m, isGeneratingDoc: false, generatedDocument: { doc_type: doc.doc_type as any, filename: doc.filename, title: doc.title, content_base64: doc.content_base64 } }
+                      ? {
+                          ...m,
+                          isGeneratingDoc: false,
+                          generatedDocument: {
+                            doc_type: doc.doc_type as any,
+                            filename: doc.filename,
+                            title: doc.title,
+                            content_base64: doc.content_base64,
+                          },
+                        }
                       : m,
                   ),
                 };
@@ -489,21 +573,36 @@ export const useChatbot = (appId?: string | null) => {
             );
           },
           (docType: string) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             if (currentConvIdRef.current === convIdAtSendTime) {
               setIsStreaming(true);
             }
-            typewriterCtxRef.current = { msgId: assistantMessageId, convId: convIdAtSendTime };
+            typewriterCtxRef.current = {
+              msgId: assistantMessageId,
+              convId: convIdAtSendTime,
+            };
             setConversations((prev) =>
               prev.map((c) => {
                 if (c.id !== convIdAtSendTime) return c;
-                const exists = c.messages.find((m) => m.id === assistantMessageId);
+                const exists = c.messages.find(
+                  (m) => m.id === assistantMessageId,
+                );
                 if (exists) return c;
                 return {
                   ...c,
                   messages: [
                     ...c.messages,
-                    { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), isGeneratingDoc: true },
+                    {
+                      id: assistantMessageId,
+                      role: "assistant" as const,
+                      content: "",
+                      timestamp: new Date(),
+                      isGeneratingDoc: true,
+                    },
                   ],
                   updatedAt: new Date(),
                 };
@@ -529,7 +628,7 @@ export const useChatbot = (appId?: string | null) => {
           setIsAuthenticated(false);
           tokenService.clearTokens();
           authTokenService.clearTokens();
-          window.dispatchEvent(new CustomEvent('session-expired'));
+          window.dispatchEvent(new CustomEvent("session-expired"));
           if (currentConvIdRef.current === convIdAtSendTime) {
             setIsStreaming(false);
           }
@@ -540,7 +639,9 @@ export const useChatbot = (appId?: string | null) => {
           setConversations((prev) =>
             prev.map((c) => {
               if (c.id !== convIdAtSendTime) return c;
-              const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+              const existingMsg = c.messages.find(
+                (m) => m.id === assistantMessageId,
+              );
               if (existingMsg) {
                 return {
                   ...c,
@@ -555,7 +656,13 @@ export const useChatbot = (appId?: string | null) => {
                 ...c,
                 messages: [
                   ...c.messages,
-                  { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), errorMessage: message },
+                  {
+                    id: assistantMessageId,
+                    role: "assistant" as const,
+                    content: "",
+                    timestamp: new Date(),
+                    errorMessage: message,
+                  },
                 ],
                 updatedAt: new Date(),
               };
@@ -614,7 +721,8 @@ export const useChatbot = (appId?: string | null) => {
         return;
       }
 
-      const displayMessage = message.trim() || `Analyze this file: ${file.name}`;
+      const displayMessage =
+        message.trim() || `Analyze this file: ${file.name}`;
       const userMessage: ChatMessage = {
         id: Math.random().toString(36).slice(2),
         role: "user",
@@ -652,17 +760,22 @@ export const useChatbot = (appId?: string | null) => {
       setIsLoading(true);
       setError(null);
 
-      const existingFileCtrl = abortControllersRef.current.get(currentConversationId);
+      const existingFileCtrl = abortControllersRef.current.get(
+        currentConversationId,
+      );
       if (existingFileCtrl) {
         existingFileCtrl.abort();
         abortControllersRef.current.delete(currentConversationId);
       }
-      if (!typewriterCtxRef.current || typewriterCtxRef.current.convId === currentConversationId) {
-        pendingTextRef.current = '';
+      if (
+        !typewriterCtxRef.current ||
+        typewriterCtxRef.current.convId === currentConversationId
+      ) {
+        pendingTextRef.current = "";
         streamDoneRef.current = false;
         streamDoneCallbackRef.current = null;
         if (typewriterRunningRef.current) {
-          typewriterWorkerRef.current?.postMessage('stop');
+          typewriterWorkerRef.current?.postMessage("stop");
           typewriterRunningRef.current = false;
           typewriterCtxRef.current = null;
         }
@@ -683,7 +796,11 @@ export const useChatbot = (appId?: string | null) => {
           message,
           currentConversation.messages,
           (chunk: string) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             if (currentConvIdRef.current === convIdAtSendTime) {
               setIsStreaming(true);
               pendingTextRef.current += chunk;
@@ -692,12 +809,16 @@ export const useChatbot = (appId?: string | null) => {
               setConversations((prev) =>
                 prev.map((c) => {
                   if (c.id !== convIdAtSendTime) return c;
-                  const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                  const existingMsg = c.messages.find(
+                    (m) => m.id === assistantMessageId,
+                  );
                   if (existingMsg) {
                     return {
                       ...c,
                       messages: c.messages.map((m) =>
-                        m.id === assistantMessageId ? { ...m, content: m.content + chunk } : m,
+                        m.id === assistantMessageId
+                          ? { ...m, content: m.content + chunk }
+                          : m,
                       ),
                     };
                   }
@@ -705,7 +826,12 @@ export const useChatbot = (appId?: string | null) => {
                     ...c,
                     messages: [
                       ...c.messages,
-                      { id: assistantMessageId, role: 'assistant' as const, content: chunk, timestamp: new Date() },
+                      {
+                        id: assistantMessageId,
+                        role: "assistant" as const,
+                        content: chunk,
+                        timestamp: new Date(),
+                      },
                     ],
                     updatedAt: new Date(),
                   };
@@ -714,7 +840,11 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (metadata) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             abortControllersRef.current.delete(convIdAtSendTime);
             const isForeground = currentConvIdRef.current === convIdAtSendTime;
             const finish = () => {
@@ -725,7 +855,11 @@ export const useChatbot = (appId?: string | null) => {
                     ...c,
                     messages: c.messages.map((m) =>
                       m.id === assistantMessageId
-                        ? { ...m, modelUsed: metadata.model, responseTime: metadata.response_time }
+                        ? {
+                            ...m,
+                            modelUsed: metadata.model,
+                            responseTime: metadata.response_time,
+                          }
                         : m,
                     ),
                   };
@@ -744,7 +878,11 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           (errorMsg: string) => {
-            if ((streamGenerationsRef.current.get(convIdAtSendTime) || 0) !== myGen) return;
+            if (
+              (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
+              myGen
+            )
+              return;
             abortControllersRef.current.delete(convIdAtSendTime);
             if (currentConvIdRef.current === convIdAtSendTime) {
               stopTypewriter();
@@ -752,12 +890,16 @@ export const useChatbot = (appId?: string | null) => {
             setConversations((prev) =>
               prev.map((c) => {
                 if (c.id !== convIdAtSendTime) return c;
-                const existingMsg = c.messages.find((m) => m.id === assistantMessageId);
+                const existingMsg = c.messages.find(
+                  (m) => m.id === assistantMessageId,
+                );
                 if (existingMsg) {
                   return {
                     ...c,
                     messages: c.messages.map((m) =>
-                      m.id === assistantMessageId ? { ...m, errorMessage: errorMsg } : m,
+                      m.id === assistantMessageId
+                        ? { ...m, errorMessage: errorMsg }
+                        : m,
                     ),
                   };
                 }
@@ -765,7 +907,13 @@ export const useChatbot = (appId?: string | null) => {
                   ...c,
                   messages: [
                     ...c.messages,
-                    { id: assistantMessageId, role: 'assistant' as const, content: '', timestamp: new Date(), errorMessage: errorMsg },
+                    {
+                      id: assistantMessageId,
+                      role: "assistant" as const,
+                      content: "",
+                      timestamp: new Date(),
+                      errorMessage: errorMsg,
+                    },
                   ],
                   updatedAt: new Date(),
                 };
@@ -792,7 +940,7 @@ export const useChatbot = (appId?: string | null) => {
           setIsAuthenticated(false);
           tokenService.clearTokens();
           authTokenService.clearTokens();
-          window.dispatchEvent(new CustomEvent('session-expired'));
+          window.dispatchEvent(new CustomEvent("session-expired"));
         } else {
           setError(errMessage);
         }
@@ -803,8 +951,7 @@ export const useChatbot = (appId?: string | null) => {
             return {
               ...c,
               messages: c.messages.filter(
-                (m) =>
-                  m.id !== userMessage.id && m.id !== assistantMessageId,
+                (m) => m.id !== userMessage.id && m.id !== assistantMessageId,
               ),
             };
           });

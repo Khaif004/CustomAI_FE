@@ -1,14 +1,14 @@
-import { useState } from 'react';
-import { useOAuth2 } from '../hooks/useOAuth2';
-import { authApi, tokenService } from '../services/api';
-import '../styles/Login.scss';
+import { useState } from "react";
+import { useOAuth2 } from "../hooks/useOAuth2";
+import { authApi, tokenService } from "../services/api";
+import "../styles/Login.scss";
 
 export function Login() {
   const [isLoadingSSO, setIsLoadingSSO] = useState(false);
   const [isLoadingCredentials, setIsLoadingCredentials] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleSSOLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,10 +17,13 @@ export function Login() {
 
     try {
       await useOAuth2();
-      window.location.href = '/';
+      window.location.href = "/";
     } catch (error) {
-      console.error('SSO login failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'SSO login failed. Please try again.';
+      console.error("SSO login failed:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "SSO login failed. Please try again.";
       setError(errorMessage);
       setIsLoadingSSO(false);
     }
@@ -32,22 +35,25 @@ export function Login() {
     setError(null);
 
     if (!email || !password) {
-      setError('Please enter both email and password');
+      setError("Please enter both email and password");
       setIsLoadingCredentials(false);
       return;
     }
-    
+
     try {
       const response = await authApi.login(email, password);
       tokenService.setTokens(
         response.access_token,
         response.refresh_token,
-        response.expires_in
+        response.expires_in,
       );
-      window.location.href = '/';
+      window.location.href = "/";
     } catch (error) {
-      console.error('Login failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Invalid credentials. Please try again.';
+      console.error("Login failed:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Invalid credentials. Please try again.";
       setError(errorMessage);
       setIsLoadingCredentials(false);
     }
@@ -59,7 +65,14 @@ export function Login() {
         <div className="login-card">
           <div className="login-header">
             <div className="login-logo">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
               </svg>
             </div>
@@ -69,7 +82,14 @@ export function Login() {
 
           {error && (
             <div className="login-error">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -105,20 +125,34 @@ export function Login() {
               />
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="login-button"
               disabled={isLoadingCredentials || isLoadingSSO}
             >
               {isLoadingCredentials ? (
                 <>
-                  <svg className="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="30" />
+                  <svg
+                    className="spinner"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      strokeDasharray="60"
+                      strokeDashoffset="30"
+                    />
                   </svg>
                   Signing in...
                 </>
               ) : (
-                'Sign In'
+                "Sign In"
               )}
             </button>
           </form>
@@ -127,21 +161,42 @@ export function Login() {
             <span>or</span>
           </div>
 
-          <button 
-            onClick={handleSSOLogin} 
+          <button
+            onClick={handleSSOLogin}
             className="sso-button"
             disabled={isLoadingCredentials || isLoadingSSO}
           >
             {isLoadingSSO ? (
               <>
-                <svg className="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="30" />
+                <svg
+                  className="spinner"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    strokeDasharray="60"
+                    strokeDashoffset="30"
+                  />
                 </svg>
                 Signing in...
               </>
             ) : (
               <>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M13.8 12H3" />
                 </svg>
                 Sign In with SSO
@@ -161,19 +216,40 @@ export function Login() {
           <p className="tagline">Enterprise AI Assistant powered by SAP BTP</p>
           <div className="features">
             <div className="feature">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               <span>Intelligent Conversations</span>
             </div>
             <div className="feature">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               <span>Document Analysis</span>
             </div>
             <div className="feature">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               <span>Secure & Scalable</span>
