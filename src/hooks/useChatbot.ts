@@ -35,6 +35,10 @@ export const useChatbot = (appId?: string | null) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(checkAuthentication());
+  const [fioriContext, setFioriContext] = useState<Record<string, any> | null>(
+    null,
+  );
+  const [embeddedAppId, setEmbeddedAppId] = useState<string | null>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const streamGenerationsRef = useRef<Map<string, number>>(new Map());
   const currentConvIdRef = useRef<string>(currentConversationId);
@@ -69,6 +73,26 @@ export const useChatbot = (appId?: string | null) => {
       worker.terminate();
       typewriterWorkerRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== "object") return;
+      const { type, payload, token } = event.data as {
+        type?: string;
+        payload?: Record<string, any>;
+        token?: string;
+      };
+      if (type === "btp-copilot:set-context" && payload) {
+        setFioriContext(payload);
+        if (payload.app_id) setEmbeddedAppId(payload.app_id);
+      }
+      if (type === "btp-copilot:auth" && token) {
+        localStorage.setItem("access_token", token);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, []);
 
   const startTypewriter = useCallback((msgId: string, convId: string) => {
@@ -542,7 +566,7 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           controller.signal,
-          appId,
+          embeddedAppId ?? appId,
           (doc) => {
             if (
               (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
@@ -610,6 +634,7 @@ export const useChatbot = (appId?: string | null) => {
             );
             void docType;
           },
+          fioriContext,
         );
       } catch (err) {
         abortControllersRef.current.delete(convIdAtSendTime);
@@ -1042,6 +1067,7 @@ export const useChatbot = (appId?: string | null) => {
     isStreaming,
     error,
     isAuthenticated,
+    fioriContext,
 
     login,
     logout,

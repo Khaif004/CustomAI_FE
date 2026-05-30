@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
@@ -8,13 +8,20 @@ import AttachIcon from "../assets/attachIcon.svg?react";
 import SendIcon from "../assets/sendIcon.svg?react";
 import StopIcon from "../assets/stopIcon.svg?react";
 import CrossIcon from "../assets/crossIcon.svg?react";
-import AppLogoIcon from "../assets/appLogoIcon.svg?react";
 import SunIcon from "../assets/sunIcon.svg?react";
 import MoonIcon from "../assets/moonIcon.svg?react";
 import ChevronDownIcon from "../assets/chevronDownIcon.svg?react";
+import HamburgerMenuIcon from "../assets/hamburgerMenuIcon.svg?react";
+import FullscreenIcon from "../assets/fullscreenIcon.svg?react";
+import ExitFullscreenIcon from "../assets/exitFullscreenIcon.svg?react";
+import MinimizeIcon from "../assets/minimizeIcon.svg?react";
 import "../styles/ChatbotApp.scss";
 import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
+
+const isInIframe = (() => {
+  try { return window.self !== window.top; } catch { return true; }
+})();
 
 export const ChatbotApp = () => {
   const appId = new URLSearchParams(window.location.search).get("appId");
@@ -37,12 +44,15 @@ export const ChatbotApp = () => {
     editMessage,
     regenerateLastResponse,
     reactToMessage,
+    fioriContext,
   } = useChatbot(appId);
 
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
   const [inputValue, setInputValue] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Sidebar starts closed inside an iframe — the panel is too narrow to share.
+  const [sidebarOpen, setSidebarOpen] = useState(!isInIframe);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -98,11 +108,37 @@ export const ChatbotApp = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
+  const handleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => !prev);
+    window.parent.postMessage({ type: "btp-copilot:fullscreen" }, "*");
+  }, []);
+
+  const handleMinimize = useCallback(() => {
+    window.parent.postMessage({ type: "btp-copilot:minimize" }, "*");
+  }, []);
+
+  const handleClose = useCallback(() => {
+    window.parent.postMessage({ type: "btp-copilot:close" }, "*");
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate("/login");
     }
   }, [isAuthenticated]);
+
+  // Close the sidebar when the user clicks / taps anywhere outside of it.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const sidebar = document.querySelector(".sidebar");
+      if (sidebar && !sidebar.contains(e.target as Node)) {
+        setSidebarOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [sidebarOpen]);
 
   const isNearBottom = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -223,63 +259,114 @@ export const ChatbotApp = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const suggestions = [
-    {
-      title: "Explain a concept",
-      text: "How does machine learning work?",
-    },
-    {
-      title: "Write code",
-      text: "Create a React component for a button",
-    },
-    // {
-    //   title: "Get help",
-    //   text: "What can you help me with?",
-    // },
-    // {
-    //   title: "Analyze data",
-    //   text: "Help me understand this dataset",
-    // },
-  ];
+  const suggestions = useMemo(() => {
+    const ctx = fioriContext;
+    const appName = ctx?.app_name || ctx?.app_id || appId;
+    const schemaHint = ctx?.extra?.schema_hint as string | undefined;
+    const entityData = ctx?.entity_data as Record<string, unknown> | undefined;
+    const currentView = ctx?.current_view as string | undefined;
+
+    // No meaningful context yet — generic fallback
+    if (!appName && !schemaHint && !currentView) {
+      return [
+        { title: "Explain a concept", text: "How does machine learning work?" },
+        { title: "Write code", text: "Create a React component for a button" },
+      ];
+    }
+
+    const name = appName || "this application";
+
+    // Extract entity names from schema hint (## EntityName headings)
+    const entityNames: string[] =
+      schemaHint
+        ?.match(/^##\s+(.+)$/gm)
+        ?.map((m: string) => m.replace(/^##\s+/, "").trim())
+        .filter(Boolean) ?? [];
+
+    const items: { title: string; text: string }[] = [];
+
+    // 1. App overview
+    items.push({
+      title: `${name} overview`,
+      text: `What can you help me with in the ${name} application?`,
+    });
+
+    // 2. Current record or current screen
+    if (entityData && Object.keys(entityData).length > 0) {
+      const [key, val] = Object.entries(entityData)[0];
+      items.push({
+        title: "Current record",
+        text: `Tell me about this ${key}: ${String(val)}`,
+      });
+    } else if (currentView && currentView.length > 1) {
+      items.push({
+        title: "Current screen",
+        text: `What data and actions are available on the current screen?`,
+      });
+    }
+
+    // 3 & 4. Entity-specific questions from schema
+    if (entityNames[0]) {
+      items.push({
+        title: entityNames[0],
+        text: `Explain the ${entityNames[0]} and its key fields`,
+      });
+    }
+
+    if (entityNames[1]) {
+      items.push({
+        title: entityNames[1],
+        text: `How does ${entityNames[1]} relate to ${entityNames[0] ?? name}?`,
+      });
+    } else {
+      items.push({
+        title: "Workflow",
+        text: `Walk me through a typical ${name} workflow step by step`,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [fioriContext, appId]);
 
   return (
-    <div className="chatbot-app">
-      {sidebarOpen ? (
-        <>
-          <ConversationSidebar
-            conversations={conversations}
-            currentId={currentConversation.id}
-            onNewChat={handleNewChat}
-            onSelectConversation={(id: string) => {
-              setCurrentConversationId(id);
-            }}
-            onDeleteConversation={deleteConversation}
-            onClearAll={clearAll}
-            isOpen={sidebarOpen}
-            onToggle={() => setSidebarOpen(false)}
-            width={sidebarWidth}
-            onLogout={logout}
-          />
+    <div className={`chatbot-app${isInIframe ? " is-iframe" : ""}${isInIframe && isFullscreen ? " is-fullscreen" : ""}`}>
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <ConversationSidebar
+        conversations={conversations}
+        currentId={currentConversation.id}
+        onNewChat={handleNewChat}
+        onSelectConversation={(id: string) => {
+          setCurrentConversationId(id);
+        }}
+        onDeleteConversation={deleteConversation}
+        onClearAll={clearAll}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen((prev) => !prev)}
+        width={sidebarOpen ? sidebarWidth : undefined}
+        onLogout={logout}
+      />
 
-          <div
-            className="sidebar-resize-handle"
-            onMouseDown={handleMouseDown}
-          />
-        </>
-      ) : (
-        <div className="sidebar-collapsed">
-          <button
-            className="sidebar-open-btn"
-            onClick={() => setSidebarOpen(true)}
-            title="Open sidebar"
-          >
-            <AppLogoIcon />
-          </button>
-        </div>
+      {sidebarOpen && (
+        <div
+          className="sidebar-resize-handle"
+          onMouseDown={handleMouseDown}
+        />
       )}
 
       <div className="chat-main">
         <div className="chat-header">
+          <button
+            className="chat-header-menu-btn"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            title="Open sidebar"
+          >
+            <HamburgerMenuIcon />
+          </button>
           <div className="chat-title">
             {currentConversation.title || "New Chat"}
           </div>
@@ -298,6 +385,31 @@ export const ChatbotApp = () => {
             <button className="icon-btn" title="Settings">
               <SettingsGearIcon />
             </button>
+            {isInIframe && (
+              <div className="iframe-controls">
+                <button
+                  className="iframe-ctrl-btn fullscreen-btn"
+                  onClick={handleFullscreen}
+                  title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+                </button>
+                <button
+                  className="iframe-ctrl-btn minimize-btn"
+                  onClick={handleMinimize}
+                  title="Minimize"
+                >
+                  <MinimizeIcon />
+                </button>
+                <button
+                  className="iframe-ctrl-btn close-btn"
+                  onClick={handleClose}
+                  title="Close"
+                >
+                  <CrossIcon />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

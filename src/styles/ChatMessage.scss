@@ -38,6 +38,9 @@
 
     .message-content {
       align-items: flex-start;
+      // Give assistant messages more horizontal space on every screen size.
+      // User bubble messages keep the global 70% via the base rule.
+      max-width: 100%;
     }
 
     .message-avatar {
@@ -49,7 +52,10 @@
     .message-body {
       color: var(--text-primary);
       border-bottom-left-radius: 0.25rem;
-      width: 43.75rem;
+      // Use max-width rather than a fixed width so content never overflows
+      // narrow containers (e.g. iframe panel at ~26rem).
+      width: auto;
+      max-width: 100%;
     }
   }
 
@@ -541,6 +547,12 @@
 @media (max-width: 48rem) {
   .message-content {
     max-width: 85%;
+  }
+
+  // On tablet/phone, assistant messages fill the full row (minus avatar+gap).
+  .message.assistant .message-content {
+    width: calc(100% - 2.75rem);
+    max-width: 100%;
   }
 }
 

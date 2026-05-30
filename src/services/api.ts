@@ -214,6 +214,7 @@ export const chatApi = {
       content_base64: string;
     }) => void,
     onDocGenerating?: (docType: string) => void,
+    fioriContext?: Record<string, any> | null,
   ) => {
     if (authTokenService.getTokens() && authTokenService.isExpired()) {
       try {
@@ -237,6 +238,7 @@ export const chatApi = {
         message,
         conversation_history: conversationHistory,
         ...(appId ? { app_id: appId } : {}),
+        ...(fioriContext ? { fiori_context: fioriContext } : {}),
       }),
       signal,
     });
