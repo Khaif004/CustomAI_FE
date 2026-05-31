@@ -52,8 +52,6 @@
     .message-body {
       color: var(--text-primary);
       border-bottom-left-radius: 0.25rem;
-      // Use max-width rather than a fixed width so content never overflows
-      // narrow containers (e.g. iframe panel at ~26rem).
       width: auto;
       max-width: 100%;
     }
@@ -549,10 +547,31 @@
     max-width: 85%;
   }
 
-  // On tablet/phone, assistant messages fill the full row (minus avatar+gap).
   .message.assistant .message-content {
-    width: calc(100% - 2.75rem);
+    flex: 1;
+    min-width: 0;
     max-width: 100%;
+  }
+
+  .message.assistant .message-body {
+    width: 100%;
+    padding-right: 0.5rem;
+    text-align: justify;
+    text-align-last: left;
+    hyphens: auto;
+
+    code, .inline-code {
+      display: inline-block;
+      text-align: start;
+      hyphens: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    pre, .code-block {
+      text-align: left;
+      hyphens: none;
+    }
   }
 }
 
