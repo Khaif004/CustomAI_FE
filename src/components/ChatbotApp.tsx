@@ -138,9 +138,12 @@ export const ChatbotApp = () => {
   }, [isAuthenticated]);
 
   // Close the sidebar when the user clicks / taps anywhere outside of it.
+  // Only active on tablet / mobile (≤ 768 px) where the sidebar overlays the chat.
+  // On larger screens the sidebar sits inline, so outside-clicks should be ignored.
   useEffect(() => {
     if (!sidebarOpen) return;
     const handleOutside = (e: MouseEvent) => {
+      if (!window.matchMedia("(max-width: 48rem)").matches) return;
       const sidebar = document.querySelector(".sidebar");
       if (sidebar && !sidebar.contains(e.target as Node)) {
         setSidebarOpen(false);

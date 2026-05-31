@@ -1,6 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import crossIcon from "../assets/crossWhiteIcon.svg";
 import "../styles/Modal.scss";
+
+const CLOSE_DURATION = 220; // ms — must match the CSS animation duration
 
 interface ModalProps {
   isOpen: boolean;
@@ -17,13 +20,28 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = "md",
 }) => {
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
+  // `visible` keeps the DOM node alive during the exit animation.
+  const [visible, setVisible] = useState(isOpen);
+  const [closing, setClosing] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      setClosing(false);
+      setVisible(true);
+    } else if (visible) {
+      setClosing(true);
+      const t = setTimeout(() => {
+        setVisible(false);
+        setClosing(false);
+      }, CLOSE_DURATION);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     if (isOpen) {
       document.addEventListener("keydown", handleEscape);
       document.body.style.overflow = "hidden";
@@ -34,12 +52,17 @@ export const Modal: React.FC<ModalProps> = ({
     }
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!visible) return null;
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
+  // Render into document.body so the overlay escapes any parent stacking
+  // context (e.g. the sidebar's position:fixed / z-index on mobile).
+  return createPortal(
+    <div
+      className={`modal-overlay${closing ? " modal-overlay--closing" : ""}`}
+      onClick={onClose}
+    >
       <div
-        className={`modal modal-${size}`}
+        className={`modal modal-${size}${closing ? " modal--closing" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
@@ -50,6 +73,7 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
