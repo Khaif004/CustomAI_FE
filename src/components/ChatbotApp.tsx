@@ -23,6 +23,15 @@ const isInIframe = (() => {
   try { return window.self !== window.top; } catch { return true; }
 })();
 
+const THINKING_TEXTS = [
+  "Thinking...",
+  "Analyzing your question...",
+  "Processing...",
+  "Looking into this...",
+  "Crafting a response...",
+  "Putting it together...",
+];
+
 export const ChatbotApp = () => {
   const appId = new URLSearchParams(window.location.search).get("appId");
 
@@ -56,6 +65,7 @@ export const ChatbotApp = () => {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [thinkingIdx, setThinkingIdx] = useState(0);
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("theme");
@@ -168,6 +178,15 @@ export const ChatbotApp = () => {
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  useEffect(() => {
+    if (!isLoading || isStreaming) { setThinkingIdx(0); return; }
+    const id = setInterval(
+      () => setThinkingIdx((i) => (i + 1) % THINKING_TEXTS.length),
+      1500,
+    );
+    return () => clearInterval(id);
+  }, [isLoading, isStreaming]);
 
   const lastMessage =
     currentConversation.messages[currentConversation.messages.length - 1];
@@ -484,9 +503,28 @@ export const ChatbotApp = () => {
                   currentConversation.messages.length - 1
                 ]?.role === "user" && (
                   <div className="loading-message">
-                    <div className="loading-indicator">
-                      <span className="loading-text">Analyzing</span>
-                      <div className="loading-spinner"></div>
+                    <div className="loading-avatar">AI</div>
+                    <div className="loading-bubble">
+                      <svg
+                        className="loading-spark-icon"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        width="15"
+                        height="15"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 2c.4 3.6 3.4 6.5 7 7-3.6.5-6.6 3.4-7 7-.4-3.6-3.4-6.5-7-7 3.6-.5 6.6-3.4 7-7Z" />
+                        <path d="M19 1c.3 1.6 1.4 2.7 3 3-1.6.3-2.7 1.4-3 3-.3-1.6-1.4-2.7-3-3 1.6-.3 2.7-1.4 3-3Z" opacity="0.6" />
+                      </svg>
+                      <span
+                        className="loading-thinking-text"
+                        key={thinkingIdx}
+                      >
+                        {THINKING_TEXTS[thinkingIdx]}
+                      </span>
+                      <span className="loading-bounce-dots">
+                        <span /><span /><span />
+                      </span>
                     </div>
                   </div>
                 )}
