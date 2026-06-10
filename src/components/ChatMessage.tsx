@@ -282,7 +282,7 @@ export const ChatMessage = ({
         const headerRow = tableRows[0];
         const bodyRows = tableRows.slice(1);
         elements.push(
-          <div key={`table-wrap-${tableKey}`} className="table-wrapper">
+          <div key={`table-wrap-${tableKey}`} className={`table-wrapper${isStreaming ? " table-streaming" : ""}`}>
             <table key={`table-${tableKey++}`}>
               <thead>
                 <tr>
@@ -316,13 +316,28 @@ export const ChatMessage = ({
         return;
       }
 
-      if (/^\|[\s\-:|]+\|$/.test(line.trim())) {
+      const trimmedLine = line.trim();
+
+      // Separator row — trailing | is optional so partial forms mid-stream
+      // (e.g. "| --- | ---") are silently absorbed rather than rendered.
+      if (/^\|[\s\-:|]+\|?$/.test(trimmedLine)) {
         return;
       }
 
-      if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+      // Complete table row
+      if (trimmedLine.startsWith("|") && trimmedLine.endsWith("|")) {
         flushList();
-        const cells = line.trim().slice(1, -1).split("|");
+        const cells = trimmedLine.slice(1, -1).split("|");
+        tableRows.push(cells);
+        return;
+      }
+
+      // During streaming the closing | of the last row hasn't arrived yet.
+      // Absorb partial rows into the table block so raw "|…" text never
+      // appears as a paragraph in the chat bubble.
+      if (isStreaming && trimmedLine.startsWith("|")) {
+        flushList();
+        const cells = trimmedLine.slice(1).split("|");
         tableRows.push(cells);
         return;
       }
@@ -521,7 +536,7 @@ export const ChatMessage = ({
                 </span>
               </div>
             )}
-            <div className="message-body">
+            <div className={`message-body${isStreaming && message.role === "assistant" ? " is-streaming" : ""}`}>
               {message.role === "assistant" && showRaw ? (
                 <pre className="raw-markdown">{displayedText}</pre>
               ) : isCodeBlock ? (

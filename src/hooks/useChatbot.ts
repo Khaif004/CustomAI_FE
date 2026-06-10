@@ -8,6 +8,7 @@ import {
 } from "./useOAuth2";
 
 const STORAGE_KEY = "chatbot_conversations";
+const CURRENT_CONV_KEY = "currentConversation";
 
 const checkAuthentication = (): boolean => {
   const oauthTokens = authTokenService.getTokens();
@@ -19,14 +20,21 @@ const checkAuthentication = (): boolean => {
 };
 
 export const useChatbot = (appId?: string | null) => {
+  const storageKey = appId
+    ? `${STORAGE_KEY}:${appId}`
+    : `${STORAGE_KEY}:global`;
+  const currentConvStorageKey = appId
+    ? `${CURRENT_CONV_KEY}:${appId}`
+    : `${CURRENT_CONV_KEY}:global`;
+
   const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(storageKey);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [currentConversationId, setCurrentConversationId] = useState<string>(
     () => {
-      const saved = localStorage.getItem("currentConversation");
+      const saved = localStorage.getItem(currentConvStorageKey);
       return saved || (Math.random().toString(36).slice(2) as string);
     },
   );
@@ -214,12 +222,12 @@ export const useChatbot = (appId?: string | null) => {
   };
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-  }, [conversations]);
+    localStorage.setItem(storageKey, JSON.stringify(conversations));
+  }, [conversations, storageKey]);
 
   useEffect(() => {
-    localStorage.setItem("currentConversation", currentConversationId);
-  }, [currentConversationId]);
+    localStorage.setItem(currentConvStorageKey, currentConversationId);
+  }, [currentConversationId, currentConvStorageKey]);
 
   useEffect(() => {
     currentConvIdRef.current = currentConversationId;

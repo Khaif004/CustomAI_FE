@@ -506,7 +506,7 @@ export const ChatbotApp = () => {
                   currentConversation.messages.length - 1
                 ]?.role === "user" && (
                   <div className="loading-message">
-                    <div className="loading-avatar">AI</div>
+                    {/* <div className="loading-avatar">AI</div> */}
                     <div className="loading-bubble">
                       <svg
                         className="loading-spark-icon"
