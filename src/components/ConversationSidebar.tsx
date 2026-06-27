@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { Conversation } from "../types/chat";
 import NewChatIcon from "../assets/newWhiteIcon.svg?react";
 import SearchIcon from "../assets/searchWhiteIcon.svg?react";
@@ -173,47 +174,49 @@ export const ConversationSidebar = ({
                         <MoreDotsIcon />
                       </button>
 
-                      {openMenuId === conversation.id && (
-                        <div
-                          className="dropdown-menu"
-                          style={{
-                            top: `${menuPosition.top}px`,
-                            left: `${menuPosition.left}px`,
-                          }}
-                        >
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log("Rename:", conversation.id);
-                              setOpenMenuId(null);
+                      {openMenuId === conversation.id &&
+                        createPortal(
+                          <div
+                            className="dropdown-menu"
+                            style={{
+                              top: `${menuPosition.top}px`,
+                              left: `${menuPosition.left}px`,
                             }}
                           >
-                            <EditIcon />
-                            Rename
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log("Pin:", conversation.id);
-                              setOpenMenuId(null);
-                            }}
-                          >
-                            <PinIcon />
-                            Pin
-                          </button>
-                          <button
-                            className="danger"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteConversation(conversation.id);
-                              setOpenMenuId(null);
-                            }}
-                          >
-                            <DeleteIcon />
-                            Delete
-                          </button>
-                        </div>
-                      )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log("Rename:", conversation.id);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <EditIcon />
+                              Rename
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log("Pin:", conversation.id);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <PinIcon />
+                              Pin
+                            </button>
+                            <button
+                              className="danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteConversation(conversation.id);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <DeleteIcon />
+                              Delete
+                            </button>
+                          </div>,
+                          document.body
+                        )}
                     </div>
                   </div>
                 ))

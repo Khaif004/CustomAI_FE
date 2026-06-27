@@ -20,21 +20,33 @@ const checkAuthentication = (): boolean => {
 };
 
 export const useChatbot = (appId?: string | null) => {
-  const storageKey = appId
+
+  const [embeddedAppId, setEmbeddedAppId] = useState<string | null>(null);
+
+  const effectiveAppId = embeddedAppId ?? appId ?? null;
+
+  const storageKey = effectiveAppId
+    ? `${STORAGE_KEY}:${effectiveAppId}`
+    : `${STORAGE_KEY}:global`;
+  const currentConvStorageKey = effectiveAppId
+    ? `${CURRENT_CONV_KEY}:${effectiveAppId}`
+    : `${CURRENT_CONV_KEY}:global`;
+
+  const initStorageKey = appId
     ? `${STORAGE_KEY}:${appId}`
     : `${STORAGE_KEY}:global`;
-  const currentConvStorageKey = appId
+  const initConvKey = appId
     ? `${CURRENT_CONV_KEY}:${appId}`
     : `${CURRENT_CONV_KEY}:global`;
 
   const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const saved = localStorage.getItem(storageKey);
+    const saved = localStorage.getItem(initStorageKey);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [currentConversationId, setCurrentConversationId] = useState<string>(
     () => {
-      const saved = localStorage.getItem(currentConvStorageKey);
+      const saved = localStorage.getItem(initConvKey);
       return saved || (Math.random().toString(36).slice(2) as string);
     },
   );
@@ -46,7 +58,6 @@ export const useChatbot = (appId?: string | null) => {
   const [fioriContext, setFioriContext] = useState<Record<string, any> | null>(
     null,
   );
-  const [embeddedAppId, setEmbeddedAppId] = useState<string | null>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const streamGenerationsRef = useRef<Map<string, number>>(new Map());
   const currentConvIdRef = useRef<string>(currentConversationId);
@@ -228,6 +239,27 @@ export const useChatbot = (appId?: string | null) => {
   useEffect(() => {
     localStorage.setItem(currentConvStorageKey, currentConversationId);
   }, [currentConversationId, currentConvStorageKey]);
+
+  const prevEffectiveAppIdRef = useRef<string | null>(appId ?? null);
+  useEffect(() => {
+    const newKey = effectiveAppId
+      ? `${STORAGE_KEY}:${effectiveAppId}`
+      : `${STORAGE_KEY}:global`;
+    const newConvKey = effectiveAppId
+      ? `${CURRENT_CONV_KEY}:${effectiveAppId}`
+      : `${CURRENT_CONV_KEY}:global`;
+
+    if (prevEffectiveAppIdRef.current === effectiveAppId) return;
+    prevEffectiveAppIdRef.current = effectiveAppId;
+
+    const saved = localStorage.getItem(newKey);
+    setConversations(saved ? JSON.parse(saved) : []);
+
+    const savedConvId = localStorage.getItem(newConvKey);
+    setCurrentConversationId(
+      savedConvId || Math.random().toString(36).slice(2),
+    );
+  }, [effectiveAppId]);
 
   useEffect(() => {
     currentConvIdRef.current = currentConversationId;
@@ -574,7 +606,7 @@ export const useChatbot = (appId?: string | null) => {
             }
           },
           controller.signal,
-          embeddedAppId ?? appId,
+          effectiveAppId,
           (doc) => {
             if (
               (streamGenerationsRef.current.get(convIdAtSendTime) || 0) !==
@@ -709,7 +741,7 @@ export const useChatbot = (appId?: string | null) => {
         setIsLoading(false);
       }
     },
-    [currentConversationId, isAuthenticated, currentConversation],
+    [currentConversationId, isAuthenticated, currentConversation, effectiveAppId],
   );
 
   const newConversation = useCallback(() => {
@@ -994,7 +1026,7 @@ export const useChatbot = (appId?: string | null) => {
         setIsLoading(false);
       }
     },
-    [currentConversationId, isAuthenticated, currentConversation],
+    [currentConversationId, isAuthenticated, currentConversation, effectiveAppId],
   );
 
   const editMessage = useCallback(
