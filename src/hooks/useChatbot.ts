@@ -16,6 +16,16 @@ import {
 const STORAGE_KEY = "chatbot_conversations";
 const CURRENT_CONV_KEY = "currentConversation";
 
+const UNLOADED = "__btp_unloaded__";
+
+const isEmbedded = (() => {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+})();
+
 const checkAuthentication = (): boolean => {
   const oauthTokens = authTokenService.getTokens();
   if (oauthTokens && !authTokenService.isExpired()) {
@@ -45,7 +55,10 @@ export const useChatbot = (appId?: string | null) => {
     ? `${CURRENT_CONV_KEY}:${appId}`
     : `${CURRENT_CONV_KEY}:global`;
 
+  const startsUnloaded = isEmbedded && !appId;
+
   const [conversations, setConversations] = useState<Conversation[]>(() => {
+    if (startsUnloaded) return [];
     const saved = localStorage.getItem(initStorageKey);
     return saved ? JSON.parse(saved) : [];
   });
@@ -55,6 +68,10 @@ export const useChatbot = (appId?: string | null) => {
       const saved = localStorage.getItem(initConvKey);
       return saved || (Math.random().toString(36).slice(2) as string);
     },
+  );
+
+  const loadedAppIdRef = useRef<string | null>(
+    startsUnloaded ? UNLOADED : appId ?? null,
   );
 
   const [isLoading, setIsLoading] = useState(false);
@@ -240,12 +257,15 @@ export const useChatbot = (appId?: string | null) => {
   };
 
   useEffect(() => {
+
+    if (loadedAppIdRef.current !== effectiveAppId) return;
     localStorage.setItem(storageKey, JSON.stringify(conversations));
-  }, [conversations, storageKey]);
+  }, [conversations, storageKey, effectiveAppId]);
 
   useEffect(() => {
+    if (loadedAppIdRef.current !== effectiveAppId) return;
     localStorage.setItem(currentConvStorageKey, currentConversationId);
-  }, [currentConversationId, currentConvStorageKey]);
+  }, [currentConversationId, currentConvStorageKey, effectiveAppId]);
 
   const prevEffectiveAppIdRef = useRef<string | null>(appId ?? null);
   useEffect(() => {
@@ -266,6 +286,9 @@ export const useChatbot = (appId?: string | null) => {
     setCurrentConversationId(
       savedConvId || Math.random().toString(36).slice(2),
     );
+
+    // Loaded conversations now belong to this context; re-enable persistence.
+    loadedAppIdRef.current = effectiveAppId;
   }, [effectiveAppId]);
 
   useEffect(() => {
@@ -812,6 +835,20 @@ export const useChatbot = (appId?: string | null) => {
     }
   }, [newConversation]);
 
+  const renameConversation = useCallback((id: string, title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title: trimmed } : c)),
+    );
+  }, []);
+
+  const togglePinConversation = useCallback((id: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c)),
+    );
+  }, []);
+
   const stopGenerating = useCallback(() => {
     const ctrl = abortControllersRef.current.get(currentConversationId);
     if (ctrl) {
@@ -1161,6 +1198,8 @@ export const useChatbot = (appId?: string | null) => {
     newConversation,
     deleteConversation,
     clearAll,
+    renameConversation,
+    togglePinConversation,
     stopGenerating,
     setCurrentConversationId,
     editMessage,

@@ -39,6 +39,7 @@ export interface Conversation {
   messages: ChatMessage[];
   createdAt: Date;
   updatedAt: Date;
+  pinned?: boolean;
 }
 
 export interface AuthResponse {

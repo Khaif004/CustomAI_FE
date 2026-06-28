@@ -48,6 +48,8 @@ export const ChatbotApp = () => {
     newConversation,
     deleteConversation,
     clearAll,
+    renameConversation,
+    togglePinConversation,
     setCurrentConversationId,
     logout,
     stopGenerating,
@@ -368,6 +370,8 @@ export const ChatbotApp = () => {
         }}
         onDeleteConversation={deleteConversation}
         onClearAll={clearAll}
+        onRenameConversation={renameConversation}
+        onTogglePin={togglePinConversation}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen((prev) => !prev)}
         width={sidebarOpen ? sidebarWidth : undefined}

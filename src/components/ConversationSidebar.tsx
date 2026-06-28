@@ -20,6 +20,8 @@ interface ConversationSidebarProps {
   onToggle: () => void;
   onDeleteConversation: (id: string) => void;
   onClearAll: () => void;
+  onRenameConversation: (id: string, title: string) => void;
+  onTogglePin: (id: string) => void;
   width?: number;
   onLogout?: () => void;
   user?: User | null;
@@ -33,6 +35,8 @@ export const ConversationSidebar = ({
   isOpen,
   onToggle,
   onDeleteConversation,
+  onRenameConversation,
+  onTogglePin,
   width,
   onLogout,
   user,
@@ -43,6 +47,21 @@ export const ConversationSidebar = ({
     left: number;
   }>({ top: 0, left: 0 });
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+
+  const commitRename = (id: string) => {
+    if (editingId !== id) return;
+    const trimmed = editingTitle.trim();
+    if (trimmed) onRenameConversation(id, trimmed);
+    setEditingId(null);
+    setEditingTitle("");
+  };
+
+  const cancelRename = () => {
+    setEditingId(null);
+    setEditingTitle("");
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -147,20 +166,77 @@ export const ConversationSidebar = ({
           <div className="conversation-list">
             {conversations.length > 0 ? (
               [...conversations]
-                .sort(
-                  (a, b) =>
+                .sort((a, b) => {
+                  // Pinned conversations always sort above unpinned ones;
+                  // within each group, most-recently-updated first.
+                  const ap = a.pinned ? 1 : 0;
+                  const bp = b.pinned ? 1 : 0;
+                  if (ap !== bp) return bp - ap;
+                  return (
                     new Date(b.updatedAt).getTime() -
-                    new Date(a.updatedAt).getTime(),
-                )
+                    new Date(a.updatedAt).getTime()
+                  );
+                })
                 .map((conversation) => (
                   <div
                     key={conversation.id}
                     className={`conversation-item ${
                       conversation.id === currentId ? "active" : ""
-                    } ${openMenuId === conversation.id ? "menu-open" : ""}`}
-                    onClick={() => onSelectConversation(conversation.id)}
+                    } ${openMenuId === conversation.id ? "menu-open" : ""} ${
+                      conversation.pinned ? "pinned" : ""
+                    }`}
+                    onClick={() => {
+                      if (editingId === conversation.id) return;
+                      onSelectConversation(conversation.id);
+                    }}
                   >
-                    <span>{getConversationTitle(conversation)}</span>
+                    {editingId === conversation.id ? (
+                      <input
+                        className="conversation-rename-input"
+                        autoFocus
+                        value={editingTitle}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            commitRename(conversation.id);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            cancelRename();
+                          }
+                        }}
+                        onBlur={() => commitRename(conversation.id)}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          font: "inherit",
+                          color: "inherit",
+                          background: "transparent",
+                          border: "none",
+                          borderBottom: "1px solid currentColor",
+                          outline: "none",
+                          padding: 0,
+                        }}
+                      />
+                    ) : (
+                      <span>
+                        {conversation.pinned && (
+                          <span
+                            className="conversation-pin-indicator"
+                            aria-label="Pinned"
+                            style={{
+                              display: "inline-flex",
+                              verticalAlign: "middle",
+                              marginRight: 4,
+                            }}
+                          >
+                            <PinIcon width={12} height={12} />
+                          </span>
+                        )}
+                        {getConversationTitle(conversation)}
+                      </span>
+                    )}
 
                     <div className="conversation-item-menu">
                       <button
@@ -196,7 +272,10 @@ export const ConversationSidebar = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                console.log("Rename:", conversation.id);
+                                setEditingId(conversation.id);
+                                setEditingTitle(
+                                  getConversationTitle(conversation),
+                                );
                                 setOpenMenuId(null);
                               }}
                             >
@@ -206,12 +285,12 @@ export const ConversationSidebar = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                console.log("Pin:", conversation.id);
+                                onTogglePin(conversation.id);
                                 setOpenMenuId(null);
                               }}
                             >
                               <PinIcon />
-                              Pin
+                              {conversation.pinned ? "Unpin" : "Pin"}
                             </button>
                             <button
                               className="danger"
