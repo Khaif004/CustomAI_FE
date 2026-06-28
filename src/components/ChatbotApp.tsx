@@ -1,10 +1,16 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+} from "react";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
 import { navigate } from "./Router";
 import SettingsGearIcon from "../assets/settingsGearIcon.svg?react";
-import AttachIcon from "../assets/attachIcon.svg?react";
+import PlusIcon from "../assets/newChatPlusIcon.svg?react";
 import SendIcon from "../assets/sendIcon.svg?react";
 import StopIcon from "../assets/stopIcon.svg?react";
 import CrossIcon from "../assets/crossIcon.svg?react";
@@ -20,7 +26,11 @@ import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
 
 const isInIframe = (() => {
-  try { return window.self !== window.top; } catch { return true; }
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
 })();
 
 const THINKING_TEXTS = [
@@ -56,7 +66,6 @@ export const ChatbotApp = () => {
     editMessage,
     regenerateLastResponse,
     reactToMessage,
-    fioriContext,
   } = useChatbot(appId);
 
   const [dismissedError, setDismissedError] = useState<string | null>(null);
@@ -82,6 +91,34 @@ export const ChatbotApp = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
+
+  // True on a brand-new chat (no messages yet): the composer floats in the
+  // vertical center; on the first message it slides down to the bottom.
+  const isEmpty = currentConversation.messages.length === 0;
+
+  // FLIP animation: record the composer's screen position right before a layout
+  // change (send / new chat), then in a layout effect translate it back to that
+  // spot and transition to its new spot, so it glides instead of jumping.
+  const flipFromTopRef = useRef<number | null>(null);
+  const captureComposerPosition = useCallback(() => {
+    const el = inputWrapperRef.current;
+    flipFromTopRef.current = el ? el.getBoundingClientRect().top : null;
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = inputWrapperRef.current;
+    const fromTop = flipFromTopRef.current;
+    flipFromTopRef.current = null;
+    if (!el || fromTop == null) return;
+    const dy = fromTop - el.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
+    el.style.transition = "none";
+    el.style.transform = `translateY(${dy}px)`;
+    void el.offsetHeight; // force reflow so the start position is committed
+    el.style.transition = "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)";
+    el.style.transform = "translateY(0)";
+  }, [isEmpty]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -186,7 +223,10 @@ export const ChatbotApp = () => {
   }, [handleScroll]);
 
   useEffect(() => {
-    if (!isLoading || isStreaming) { setThinkingIdx(0); return; }
+    if (!isLoading || isStreaming) {
+      setThinkingIdx(0);
+      return;
+    }
     const id = setInterval(
       () => setThinkingIdx((i) => (i + 1) % THINKING_TEXTS.length),
       1500,
@@ -217,6 +257,11 @@ export const ChatbotApp = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
+
+    // From a fresh chat, remember where the centered composer is so it can
+    // glide down to the bottom once the first message bumps us out of the
+    // empty state.
+    if (isEmpty) captureComposerPosition();
 
     if (attachedFile) {
       const message = inputValue.trim();
@@ -259,15 +304,13 @@ export const ChatbotApp = () => {
   };
 
   const handleNewChat = () => {
+    // Coming from a conversation, remember the docked composer position so it
+    // glides up to the center as the empty state takes over.
+    if (!isEmpty) captureComposerPosition();
     newConversation();
     setInputValue("");
     setAttachedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleSuggestionClick = (suggestion: string) => {
-    setInputValue(suggestion);
-    textareaRef.current?.focus();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,77 +327,10 @@ export const ChatbotApp = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const suggestions = useMemo(() => {
-    const ctx = fioriContext;
-    const appName = ctx?.app_name || ctx?.app_id || appId;
-    const schemaHint = ctx?.extra?.schema_hint as string | undefined;
-    const entityData = ctx?.entity_data as Record<string, unknown> | undefined;
-    const currentView = ctx?.current_view as string | undefined;
-
-    // No meaningful context yet — generic fallback
-    if (!appName && !schemaHint && !currentView) {
-      return [
-        { title: "Explain a concept", text: "How does machine learning work?" },
-        { title: "Write code", text: "Create a React component for a button" },
-      ];
-    }
-
-    const name = appName || "this application";
-
-    // Extract entity names from schema hint (## EntityName headings)
-    const entityNames: string[] =
-      schemaHint
-        ?.match(/^##\s+(.+)$/gm)
-        ?.map((m: string) => m.replace(/^##\s+/, "").trim())
-        .filter(Boolean) ?? [];
-
-    const items: { title: string; text: string }[] = [];
-
-    // 1. App overview
-    items.push({
-      title: `${name} overview`,
-      text: `What can you help me with in the ${name} application?`,
-    });
-
-    // 2. Current record or current screen
-    if (entityData && Object.keys(entityData).length > 0) {
-      const [key, val] = Object.entries(entityData)[0];
-      items.push({
-        title: "Current record",
-        text: `Tell me about this ${key}: ${String(val)}`,
-      });
-    } else if (currentView && currentView.length > 1) {
-      items.push({
-        title: "Current screen",
-        text: `What data and actions are available on the current screen?`,
-      });
-    }
-
-    // 3 & 4. Entity-specific questions from schema
-    if (entityNames[0]) {
-      items.push({
-        title: entityNames[0],
-        text: `Explain the ${entityNames[0]} and its key fields`,
-      });
-    }
-
-    if (entityNames[1]) {
-      items.push({
-        title: entityNames[1],
-        text: `How does ${entityNames[1]} relate to ${entityNames[0] ?? name}?`,
-      });
-    } else {
-      items.push({
-        title: "Workflow",
-        text: `Walk me through a typical ${name} workflow step by step`,
-      });
-    }
-
-    return items.slice(0, 4);
-  }, [fioriContext, appId]);
-
   return (
-    <div className={`chatbot-app${isInIframe ? " is-iframe" : ""}${isInIframe && isFullscreen ? " is-fullscreen" : ""}`}>
+    <div
+      className={`chatbot-app${isInIframe ? " is-iframe" : ""}${isInIframe && isFullscreen ? " is-fullscreen" : ""}`}
+    >
       {sidebarOpen && (
         <div
           className="sidebar-backdrop"
@@ -380,13 +356,10 @@ export const ChatbotApp = () => {
       />
 
       {sidebarOpen && (
-        <div
-          className="sidebar-resize-handle"
-          onMouseDown={handleMouseDown}
-        />
+        <div className="sidebar-resize-handle" onMouseDown={handleMouseDown} />
       )}
 
-      <div className="chat-main">
+      <div className={`chat-main${isEmpty ? " is-empty" : ""}`}>
         <div className="chat-header">
           <button
             className="chat-header-menu-btn"
@@ -456,28 +429,7 @@ export const ChatbotApp = () => {
         )}
 
         <div className="messages-container" ref={messagesContainerRef}>
-          {currentConversation.messages.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">AI</div>
-              <h2>How can I help you today?</h2>
-              <p>
-                I'm here to assist you with questions, coding, writing,
-                analysis, and more. Start a conversation below.
-              </p>
-              <div className="suggestions">
-                {suggestions.map((suggestion, index) => (
-                  <div
-                    key={index}
-                    className="suggestion-card"
-                    onClick={() => handleSuggestionClick(suggestion.text)}
-                  >
-                    <h4>{suggestion.title}</h4>
-                    <p>{suggestion.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
+          {!isEmpty && (
             <div className="messages-wrapper">
               {currentConversation.messages.map(
                 (message: any, index: number) => {
@@ -523,16 +475,18 @@ export const ChatbotApp = () => {
                         aria-hidden="true"
                       >
                         <path d="M12 2c.4 3.6 3.4 6.5 7 7-3.6.5-6.6 3.4-7 7-.4-3.6-3.4-6.5-7-7 3.6-.5 6.6-3.4 7-7Z" />
-                        <path d="M19 1c.3 1.6 1.4 2.7 3 3-1.6.3-2.7 1.4-3 3-.3-1.6-1.4-2.7-3-3 1.6-.3 2.7-1.4 3-3Z" opacity="0.6" />
+                        <path
+                          d="M19 1c.3 1.6 1.4 2.7 3 3-1.6.3-2.7 1.4-3 3-.3-1.6-1.4-2.7-3-3 1.6-.3 2.7-1.4 3-3Z"
+                          opacity="0.6"
+                        />
                       </svg>
-                      <span
-                        className="loading-thinking-text"
-                        key={thinkingIdx}
-                      >
+                      <span className="loading-thinking-text" key={thinkingIdx}>
                         {THINKING_TEXTS[thinkingIdx]}
                       </span>
                       <span className="loading-bounce-dots">
-                        <span /><span /><span />
+                        <span />
+                        <span />
+                        <span />
                       </span>
                     </div>
                   </div>
@@ -556,7 +510,14 @@ export const ChatbotApp = () => {
         )}
 
         <div className="input-area">
-          <div className="input-wrapper">
+          {isEmpty && (
+            <div className="empty-state">
+              <div className="empty-state-icon">AI</div>
+              <h2>How can I help you today?</h2>
+            </div>
+          )}
+
+          <div className="input-wrapper" ref={inputWrapperRef}>
             {attachedFile && (
               <div className="attached-file-preview">
                 <div className="file-chip">
@@ -604,33 +565,35 @@ export const ChatbotApp = () => {
                 <div className="input-actions">
                   <button
                     type="button"
-                    className="attach-btn"
+                    className="add-btn"
                     title="Attach file"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <AttachIcon />
+                    <PlusIcon />
                   </button>
-                  {isStreaming ? (
-                    <button
-                      type="button"
-                      className="stop-btn"
-                      onClick={stopGenerating}
-                      title="Stop generating"
-                    >
-                      <StopIcon />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      className="send-btn"
-                      disabled={
-                        (!inputValue.trim() && !attachedFile) || isLoading
-                      }
-                      title="Send message"
-                    >
-                      <SendIcon />
-                    </button>
-                  )}
+                  <div className="input-actions-right">
+                    {isStreaming ? (
+                      <button
+                        type="button"
+                        className="stop-btn"
+                        onClick={stopGenerating}
+                        title="Stop generating"
+                      >
+                        <StopIcon />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="send-btn"
+                        disabled={
+                          (!inputValue.trim() && !attachedFile) || isLoading
+                        }
+                        title="Send message"
+                      >
+                        <SendIcon />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </form>

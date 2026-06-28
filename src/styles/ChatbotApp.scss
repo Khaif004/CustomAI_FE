@@ -441,8 +441,29 @@
 .input-area {
   padding: 1.25rem 1.5rem 1.5rem;
   background: var(--bg-primary);
-  border-top: 0.0625rem solid var(--border-light);
   flex-shrink: 0;
+}
+
+// ── Empty (new-chat) state ────────────────────────────────────────────────────
+// The composer floats in the vertical center: greeting above, suggestions
+// below. On the first message the composer FLIP-slides down to the bottom.
+.chat-main.is-empty {
+  .messages-container {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .input-area {
+    // Auto top/bottom margins center the whole composer block in the free space.
+    margin-top: auto;
+    margin-bottom: auto;
+  }
+
+  .empty-state {
+    flex: 0 0 auto;
+    padding: 0 1.5rem 1.25rem;
+  }
 }
 
 .input-wrapper {
@@ -453,13 +474,15 @@
 
 .input-container {
   position: relative;
+  // Claude-style stacked composer: text on top, a controls row beneath it.
   display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
   background: var(--bg-secondary);
   border: 0.0625rem solid var(--border-light);
   border-radius: var(--radius-lg);
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.875rem;
   transition: all var(--transition-base);
 
   &:focus-within {
@@ -476,7 +499,9 @@
   line-height: 1.5;
   resize: none;
   max-height: 12.5rem;
-  min-height: 1.5rem;
+  // Taller resting height so the composer matches Claude's roomier box.
+  // Auto-grow (set via JS) still takes over once content exceeds this.
+  min-height: 3.5rem;
 
   &::placeholder {
     color: var(--text-placeholder);
@@ -485,9 +510,43 @@
 
 .input-actions {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  justify-content: space-between; // + on the left, send on the right
   flex-shrink: 0;
+}
+
+.input-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+// "+" button at the composer's bottom-left (Claude-style); opens the file picker.
+.add-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background-color: rgb(41, 38, 38);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+  }
+
+  svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+  }
 }
 
 .attach-btn {
