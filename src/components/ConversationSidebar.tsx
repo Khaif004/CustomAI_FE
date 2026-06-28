@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { Conversation, User } from "../types/chat";
-import NewChatIcon from "../assets/newWhiteIcon.svg?react";
+import NewChatIcon from "../assets/newChatPlusIcon.svg?react";
 import SearchIcon from "../assets/searchWhiteIcon.svg?react";
 import MoreDotsIcon from "../assets/moreDotsIcon.svg?react";
 import EditIcon from "../assets/editIcon.svg?react";
-import PinIcon from "../assets/pinIcon.svg?react";
+import PinIcon from "../assets/pin.svg?react";
+import UnpinIcon from "../assets/unpin.svg?react";
 import DeleteIcon from "../assets/deleteIcon.svg?react";
 import SidebarIcon from "../assets/sidebarIcon.svg?react";
 import HamburgerMenuIcon from "../assets/hamburgerMenuIcon.svg?react";
@@ -101,6 +102,121 @@ export const ConversationSidebar = ({
     return "New Chat";
   };
 
+  // Split into pinned vs the rest so they render under separate headings.
+  // Each group is ordered most-recently-updated first.
+  const sortByRecency = (a: Conversation, b: Conversation) =>
+    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  const pinnedConversations = conversations
+    .filter((c) => c.pinned)
+    .sort(sortByRecency);
+  const unpinnedConversations = conversations
+    .filter((c) => !c.pinned)
+    .sort(sortByRecency);
+
+  const renderConversation = (conversation: Conversation) => (
+    <div
+      key={conversation.id}
+      className={`conversation-item ${
+        conversation.id === currentId ? "active" : ""
+      } ${openMenuId === conversation.id ? "menu-open" : ""} ${
+        conversation.pinned ? "pinned" : ""
+      }`}
+      onClick={() => {
+        if (editingId === conversation.id) return;
+        onSelectConversation(conversation.id);
+      }}
+    >
+      {editingId === conversation.id ? (
+        <input
+          className="conversation-rename-input"
+          autoFocus
+          value={editingTitle}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setEditingTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitRename(conversation.id);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              cancelRename();
+            }
+          }}
+          onBlur={() => commitRename(conversation.id)}
+        />
+      ) : (
+        <span>{getConversationTitle(conversation)}</span>
+      )}
+
+      <div className="conversation-item-menu">
+        <button
+          className="menu-trigger"
+          onClick={(e) => {
+            e.stopPropagation();
+            const button = e.currentTarget as HTMLButtonElement;
+            const rect = button.getBoundingClientRect();
+            setMenuPosition({ top: rect.bottom + 4, left: rect.left });
+            setOpenMenuId(
+              openMenuId === conversation.id ? null : conversation.id,
+            );
+          }}
+          title="More options"
+        >
+          <MoreDotsIcon />
+        </button>
+
+        {openMenuId === conversation.id &&
+          createPortal(
+            <div
+              className="dropdown-menu"
+              style={{
+                top: `${menuPosition.top}px`,
+                left: `${menuPosition.left}px`,
+              }}
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingId(conversation.id);
+                  setEditingTitle(getConversationTitle(conversation));
+                  setOpenMenuId(null);
+                }}
+              >
+                <EditIcon />
+                Rename
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePin(conversation.id);
+                  setOpenMenuId(null);
+                }}
+              >
+                {conversation.pinned ? (
+                  <UnpinIcon className="pin-glyph" />
+                ) : (
+                  <PinIcon className="pin-glyph" />
+                )}
+                {conversation.pinned ? "Unpin" : "Pin"}
+              </button>
+              <button
+                className="danger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteConversation(conversation.id);
+                  setOpenMenuId(null);
+                }}
+              >
+                <DeleteIcon />
+                Delete
+              </button>
+            </div>,
+            document.body,
+          )}
+      </div>
+    </div>
+  );
+
   return (
     <aside
       className={`sidebar ${isOpen ? "open" : ""}`}
@@ -164,153 +280,31 @@ export const ConversationSidebar = ({
 
         <div className="sidebar-content">
           <div className="conversation-list">
-            {conversations.length > 0 ? (
-              [...conversations]
-                .sort((a, b) => {
-                  // Pinned conversations always sort above unpinned ones;
-                  // within each group, most-recently-updated first.
-                  const ap = a.pinned ? 1 : 0;
-                  const bp = b.pinned ? 1 : 0;
-                  if (ap !== bp) return bp - ap;
-                  return (
-                    new Date(b.updatedAt).getTime() -
-                    new Date(a.updatedAt).getTime()
-                  );
-                })
-                .map((conversation) => (
-                  <div
-                    key={conversation.id}
-                    className={`conversation-item ${
-                      conversation.id === currentId ? "active" : ""
-                    } ${openMenuId === conversation.id ? "menu-open" : ""} ${
-                      conversation.pinned ? "pinned" : ""
-                    }`}
-                    onClick={() => {
-                      if (editingId === conversation.id) return;
-                      onSelectConversation(conversation.id);
-                    }}
-                  >
-                    {editingId === conversation.id ? (
-                      <input
-                        className="conversation-rename-input"
-                        autoFocus
-                        value={editingTitle}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            commitRename(conversation.id);
-                          } else if (e.key === "Escape") {
-                            e.preventDefault();
-                            cancelRename();
-                          }
-                        }}
-                        onBlur={() => commitRename(conversation.id)}
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          font: "inherit",
-                          color: "inherit",
-                          background: "transparent",
-                          border: "none",
-                          borderBottom: "1px solid currentColor",
-                          outline: "none",
-                          padding: 0,
-                        }}
-                      />
-                    ) : (
-                      <span>
-                        {conversation.pinned && (
-                          <span
-                            className="conversation-pin-indicator"
-                            aria-label="Pinned"
-                            style={{
-                              display: "inline-flex",
-                              verticalAlign: "middle",
-                              marginRight: 4,
-                            }}
-                          >
-                            <PinIcon width={12} height={12} />
-                          </span>
-                        )}
-                        {getConversationTitle(conversation)}
-                      </span>
-                    )}
-
-                    <div className="conversation-item-menu">
-                      <button
-                        className="menu-trigger"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const button = e.currentTarget as HTMLButtonElement;
-                          const rect = button.getBoundingClientRect();
-                          setMenuPosition({
-                            top: rect.bottom + 4,
-                            left: rect.left,
-                          });
-                          setOpenMenuId(
-                            openMenuId === conversation.id
-                              ? null
-                              : conversation.id,
-                          );
-                        }}
-                        title="More options"
-                      >
-                        <MoreDotsIcon />
-                      </button>
-
-                      {openMenuId === conversation.id &&
-                        createPortal(
-                          <div
-                            className="dropdown-menu"
-                            style={{
-                              top: `${menuPosition.top}px`,
-                              left: `${menuPosition.left}px`,
-                            }}
-                          >
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingId(conversation.id);
-                                setEditingTitle(
-                                  getConversationTitle(conversation),
-                                );
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <EditIcon />
-                              Rename
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onTogglePin(conversation.id);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <PinIcon />
-                              {conversation.pinned ? "Unpin" : "Pin"}
-                            </button>
-                            <button
-                              className="danger"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteConversation(conversation.id);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <DeleteIcon />
-                              Delete
-                            </button>
-                          </div>,
-                          document.body
-                        )}
-                    </div>
-                  </div>
-                ))
-            ) : (
+            {conversations.length === 0 ? (
               <div className="no-conversations" />
+            ) : (
+              <>
+                {pinnedConversations.length > 0 && (
+                  <div className="conversation-group">
+                    <div className="conversation-group-label">
+                      <PinIcon className="pin-glyph" />
+                      <span>Pinned</span>
+                    </div>
+                    {pinnedConversations.map(renderConversation)}
+                  </div>
+                )}
+
+                {unpinnedConversations.length > 0 && (
+                  <div className="conversation-group">
+                    {pinnedConversations.length > 0 && (
+                      <div className="conversation-group-label">
+                        <span>Chats</span>
+                      </div>
+                    )}
+                    {unpinnedConversations.map(renderConversation)}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
