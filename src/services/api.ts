@@ -92,6 +92,48 @@ const getActiveToken = (): string | null => {
   return tokenService.getToken();
 };
 
+// Decode a JWT payload (base64url) without verifying the signature.
+const decodeJwtPayload = (token: string): Record<string, any> | null => {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
+
+// Build a display-ready user object from the active token's claims.
+// Works for both internal tokens (`username`/`sub`) and XSUAA tokens
+// (`user_name`/`given_name`/`family_name`/`email`).
+export const getUserFromToken = (): User | null => {
+  const token = getActiveToken();
+  if (!token) return null;
+  const claims = decodeJwtPayload(token);
+  if (!claims) return null;
+
+  const username =
+    claims.user_name || claims.username || claims.email || claims.sub || "";
+  if (!username) return null;
+
+  const fullName = `${claims.given_name ?? ""} ${claims.family_name ?? ""}`.trim();
+  const displayName = fullName || claims.name || username;
+
+  return {
+    user_id: claims.user_id || claims.sub || username,
+    username,
+    email: claims.email ?? null,
+    display_name: displayName || null,
+  };
+};
+
 const dispatchSessionExpired = () => {
   window.dispatchEvent(new CustomEvent("session-expired"));
 };

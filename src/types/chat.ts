@@ -49,9 +49,10 @@ export interface AuthResponse {
 }
 
 export interface User {
-  sub: string;
+  user_id: string;
   username: string;
-  exp: number;
+  email?: string | null;
+  display_name?: string | null;
 }
 
 export interface ApiError {

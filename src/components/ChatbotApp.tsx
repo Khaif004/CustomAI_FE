@@ -42,6 +42,7 @@ export const ChatbotApp = () => {
     isStreaming,
     error,
     isAuthenticated,
+    user,
     sendMessage,
     sendMessageWithFile,
     newConversation,
@@ -371,6 +372,7 @@ export const ChatbotApp = () => {
         onToggle={() => setSidebarOpen((prev) => !prev)}
         width={sidebarOpen ? sidebarWidth : undefined}
         onLogout={logout}
+        user={user}
       />
 
       {sidebarOpen && (

@@ -1,6 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { ChatMessage, Conversation } from "../types/chat";
-import { chatApi, authApi, tokenService, ApiError } from "../services/api";
+import type { ChatMessage, Conversation, User } from "../types/chat";
+import {
+  chatApi,
+  authApi,
+  tokenService,
+  ApiError,
+  getUserFromToken,
+} from "../services/api";
 import {
   authTokenService,
   logout as oauthLogout,
@@ -55,6 +61,7 @@ export const useChatbot = (appId?: string | null) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(checkAuthentication());
+  const [user, setUser] = useState<User | null>(() => getUserFromToken());
   const [fioriContext, setFioriContext] = useState<Record<string, any> | null>(
     null,
   );
@@ -281,6 +288,43 @@ export const useChatbot = (appId?: string | null) => {
       typewriterWorkerRef.current?.postMessage("stop");
     };
   }, []);
+
+  // Resolve the logged-in user's display info. Decode the token immediately
+  // (instant, offline), then refine with the authoritative /api/auth/me.
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUser(null);
+      return;
+    }
+
+    const local = getUserFromToken();
+    if (local) setUser(local);
+
+    let cancelled = false;
+    authApi
+      .getCurrentUser()
+      .then((u) => {
+        if (cancelled || !u) return;
+        setUser((prev) => {
+          const backendName =
+            u.username && u.username !== "unknown" ? u.username : null;
+          return {
+            user_id: u.user_id || prev?.user_id || "",
+            username: backendName || prev?.username || u.username,
+            email: u.email ?? prev?.email ?? null,
+            display_name:
+              u.display_name || prev?.display_name || backendName || null,
+          };
+        });
+      })
+      .catch(() => {
+        /* token-decoded user is sufficient; ignore /me failures */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   const login = useCallback(async (username: string, password: string) => {
     try {
@@ -1107,6 +1151,7 @@ export const useChatbot = (appId?: string | null) => {
     isStreaming,
     error,
     isAuthenticated,
+    user,
     fioriContext,
 
     login,

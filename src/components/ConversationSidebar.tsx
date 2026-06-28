@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import type { Conversation } from "../types/chat";
+import type { Conversation, User } from "../types/chat";
 import NewChatIcon from "../assets/newWhiteIcon.svg?react";
 import SearchIcon from "../assets/searchWhiteIcon.svg?react";
 import MoreDotsIcon from "../assets/moreDotsIcon.svg?react";
@@ -22,6 +22,7 @@ interface ConversationSidebarProps {
   onClearAll: () => void;
   width?: number;
   onLogout?: () => void;
+  user?: User | null;
 }
 
 export const ConversationSidebar = ({
@@ -34,6 +35,7 @@ export const ConversationSidebar = ({
   onDeleteConversation,
   width,
   onLogout,
+  user,
 }: ConversationSidebarProps) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -59,6 +61,14 @@ export const ConversationSidebar = ({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [openMenuId]);
+
+  const userName = user?.display_name || user?.username || "User";
+  const userInitial = userName.trim().charAt(0).toUpperCase() || "U";
+  // Prefer the email as the secondary line; fall back to the username when it
+  // differs from the name we're already showing.
+  const userSubtitle =
+    user?.email ||
+    (user?.username && user.username !== userName ? user.username : "");
 
   const getConversationTitle = (conversation: Conversation) => {
     if (conversation.title) return conversation.title;
@@ -228,10 +238,16 @@ export const ConversationSidebar = ({
 
         <div className="sidebar-footer">
           <div className="user-profile">
-            <div className="user-avatar">U</div>
+            <div className="user-avatar">{userInitial}</div>
             <div className="user-info">
-              <div className="user-name">User</div>
-              <div className="user-status">Free plan</div>
+              <div className="user-name" title={userName}>
+                {userName}
+              </div>
+              {userSubtitle && (
+                <div className="user-status" title={userSubtitle}>
+                  {userSubtitle}
+                </div>
+              )}
             </div>
             {onLogout && (
               <button className="logout-btn" onClick={onLogout} title="Log out">
