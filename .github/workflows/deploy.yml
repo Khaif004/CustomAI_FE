@@ -1,0 +1,88 @@
+name: Build & Deploy Frontend to Cloud Foundry
+
+# Deploys the React app + approuter to CF whenever code lands on main
+# (i.e. when a PR is merged). Can also be run manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys of the same branch run at once.
+concurrency:
+  group: deploy-fe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The .env.production file is gitignored (it holds secrets), so we
+      # recreate it from GitHub Secrets. Vite bakes VITE_* values into the
+      # bundle at build time, so they MUST exist before `npm run build`.
+      - name: Create build-time env file
+        run: |
+          cat > .env.production <<EOF
+          VITE_API_URL=${{ vars.VITE_API_URL }}
+          VITE_XSUAA_CLIENT_ID=${{ secrets.VITE_XSUAA_CLIENT_ID }}
+          VITE_XSUAA_CLIENT_SECRET=${{ secrets.VITE_XSUAA_CLIENT_SECRET }}
+          VITE_XSUAA_AUTH_URL=${{ secrets.VITE_XSUAA_AUTH_URL }}
+          VITE_XSUAA_TOKEN_URL=${{ secrets.VITE_XSUAA_TOKEN_URL }}
+          EOF
+
+      - name: Build (tsc + vite -> resources/)
+        run: npm run build
+
+      - name: Install Cloud Foundry CLI v8
+        run: |
+          curl -sL "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github" -o cf.tgz
+          tar -xzf cf.tgz cf8
+          sudo mv cf8 /usr/local/bin/cf
+          cf version
+
+      - name: Authenticate to Cloud Foundry
+        env:
+          CF_API: ${{ secrets.CF_API }}
+          CF_USERNAME: ${{ secrets.CF_USERNAME }}
+          CF_PASSWORD: ${{ secrets.CF_PASSWORD }}
+          CF_ORG: ${{ secrets.CF_ORG }}
+          CF_SPACE: ${{ secrets.CF_SPACE }}
+          # Optional: set this secret to the origin key of the IdP your
+          # technical user lives in (e.g. sap.default) if the subaccount has
+          # more than one trust configuration. Leave unset to use the default.
+          CF_ORIGIN: ${{ secrets.CF_ORIGIN }}
+        run: |
+          cf api "$CF_API"
+          if [ -n "$CF_ORIGIN" ]; then
+            cf auth "$CF_USERNAME" "$CF_PASSWORD" --origin "$CF_ORIGIN"
+          else
+            cf auth "$CF_USERNAME" "$CF_PASSWORD"
+          fi
+          cf target -o "$CF_ORG" -s "$CF_SPACE"
+
+      # The app binds to the shared 'btp-copilot-xsuaa' service instance.
+      # Fail early with a clear message if it isn't in this space.
+      - name: Verify xsuaa service exists
+        run: |
+          cf service btp-copilot-xsuaa > /dev/null || {
+            echo "::error::Service 'btp-copilot-xsuaa' not found in this space. Create it once before deploying (see README/workflow notes).";
+            exit 1;
+          }
+
+      - name: Deploy (cf push)
+        run: cf push -f manifest.yml
+
+      - name: Logout
+        if: always()
+        run: cf logout
