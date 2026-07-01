@@ -8,6 +8,11 @@ import {
 import { ConversationSidebar } from "./ConversationSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { useChatbot } from "../hooks/useChatbot";
+import { useToolExecution } from "../hooks/useToolExecution";
+import { ParameterCollector } from "./tools/ParameterCollector";
+import { ConfirmationCard } from "./tools/ConfirmationCard";
+import { PdfViewerHost } from "./tools/PdfViewerDialog";
+import { ExecutionLog } from "./tools/ExecutionLog";
 import { navigate } from "./Router";
 import SettingsGearIcon from "../assets/settingsGearIcon.svg?react";
 import PlusIcon from "../assets/newChatPlusIcon.svg?react";
@@ -24,6 +29,7 @@ import MinimizeIcon from "../assets/minimizeIcon.svg?react";
 import "../styles/ChatbotApp.scss";
 import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
+import "../styles/ToolExecution.scss";
 
 const isInIframe = (() => {
   try {
@@ -45,6 +51,12 @@ const THINKING_TEXTS = [
 export const ChatbotApp = () => {
   const appId = new URLSearchParams(window.location.search).get("appId");
 
+  // Stable ref so useChatbot (called first) can forward tool_call SSE events
+  // to triggerFromNL (available only after useToolExecution is called below).
+  const onToolCallRef = useRef<
+    ((data: import("../types/tools").ToolCallEvent) => void) | undefined
+  >(undefined);
+
   const {
     conversations,
     currentConversation,
@@ -53,6 +65,7 @@ export const ChatbotApp = () => {
     error,
     isAuthenticated,
     user,
+    fioriContext,
     sendMessage,
     sendMessageWithFile,
     newConversation,
@@ -66,18 +79,50 @@ export const ChatbotApp = () => {
     editMessage,
     regenerateLastResponse,
     reactToMessage,
-  } = useChatbot(appId);
+    addAssistantMessage,
+    execSteps,
+  } = useChatbot(
+    appId,
+    useCallback(
+      (data: import("../types/tools").ToolCallEvent) =>
+        onToolCallRef.current?.(data),
+      [],
+    ),
+  );
+
+  // ── Tool execution state machine ─────────────────────────────────────────────
+
+  const {
+    state: toolState,
+    triggerFromNL,
+    submitParam,
+    goBack: toolGoBack,
+    executeConfirmed,
+    reset: resetTool,
+  } = useToolExecution(
+    appId ?? fioriContext?.app_id ?? null,
+    addAssistantMessage,
+    () => fioriContext?.odata_token ?? undefined,
+  );
+
+  // Wire the ref so the useChatbot SSE callback reaches triggerFromNL
+  onToolCallRef.current = (data) =>
+    triggerFromNL(data.tool_key, data.entity_key, data.parameters ?? {});
+
+  // ── General UI state ─────────────────────────────────────────────────────────
 
   const [dismissedError, setDismissedError] = useState<string | null>(null);
-
   const [inputValue, setInputValue] = useState("");
-  // Sidebar starts closed inside an iframe — the panel is too narrow to share.
   const [sidebarOpen, setSidebarOpen] = useState(!isInIframe);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [thinkingIdx, setThinkingIdx] = useState(0);
+
+  // Keep a ref to inputValue so async callbacks can read the latest value
+  const inputValueRef = useRef(inputValue);
+  inputValueRef.current = inputValue;
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("theme");
@@ -86,6 +131,7 @@ export const ChatbotApp = () => {
       ? "dark"
       : "light";
   });
+
   const isResizing = useRef(false);
   const userScrolledUp = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -93,13 +139,10 @@ export const ChatbotApp = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
 
-  // True on a brand-new chat (no messages yet): the composer floats in the
-  // vertical center; on the first message it slides down to the bottom.
   const isEmpty = currentConversation.messages.length === 0;
 
-  // FLIP animation: record the composer's screen position right before a layout
-  // change (send / new chat), then in a layout effect translate it back to that
-  // spot and transition to its new spot, so it glides instead of jumping.
+  // ── FLIP animation for the composer ─────────────────────────────────────────
+
   const flipFromTopRef = useRef<number | null>(null);
   const captureComposerPosition = useCallback(() => {
     const el = inputWrapperRef.current;
@@ -115,10 +158,12 @@ export const ChatbotApp = () => {
     if (Math.abs(dy) < 1) return;
     el.style.transition = "none";
     el.style.transform = `translateY(${dy}px)`;
-    void el.offsetHeight; // force reflow so the start position is committed
+    void el.offsetHeight;
     el.style.transition = "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)";
     el.style.transform = "translateY(0)";
   }, [isEmpty]);
+
+  // ── Sidebar resize ───────────────────────────────────────────────────────────
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -133,14 +178,12 @@ export const ChatbotApp = () => {
       const newWidth = Math.min(Math.max(e.clientX, 180), 480);
       setSidebarWidth(newWidth);
     };
-
     const handleMouseUp = () => {
       if (!isResizing.current) return;
       isResizing.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
     return () => {
@@ -148,6 +191,8 @@ export const ChatbotApp = () => {
       document.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
+
+  // ── Theme ────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -157,6 +202,8 @@ export const ChatbotApp = () => {
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
+
+  // ── Iframe controls ──────────────────────────────────────────────────────────
 
   const handleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => !prev);
@@ -171,27 +218,27 @@ export const ChatbotApp = () => {
     window.parent.postMessage({ type: "btp-copilot:close" }, "*");
   }, []);
 
+  // ── Auth redirect ────────────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/login");
-    }
+    if (!isAuthenticated) navigate("/login");
   }, [isAuthenticated]);
 
-  // Close the sidebar when the user clicks / taps anywhere outside of it.
-  // Only active on tablet / mobile (≤ 768 px) where the sidebar overlays the chat.
-  // On larger screens the sidebar sits inline, so outside-clicks should be ignored.
+  // ── Sidebar outside-click close (mobile) ─────────────────────────────────────
+
   useEffect(() => {
     if (!sidebarOpen) return;
     const handleOutside = (e: MouseEvent) => {
       if (!window.matchMedia("(max-width: 48rem)").matches) return;
       const sidebar = document.querySelector(".sidebar");
-      if (sidebar && !sidebar.contains(e.target as Node)) {
+      if (sidebar && !sidebar.contains(e.target as Node))
         setSidebarOpen(false);
-      }
     };
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [sidebarOpen]);
+
+  // ── Scroll management ────────────────────────────────────────────────────────
 
   const isNearBottom = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -204,9 +251,8 @@ export const ChatbotApp = () => {
 
   const scrollToBottom = useCallback(() => {
     const container = messagesContainerRef.current;
-    if (container) {
+    if (container)
       container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-    }
   }, []);
 
   const handleScroll = useCallback(() => {
@@ -236,31 +282,33 @@ export const ChatbotApp = () => {
 
   const lastMessage =
     currentConversation.messages[currentConversation.messages.length - 1];
+
   useEffect(() => {
     if (!userScrolledUp.current) {
       const container = messagesContainerRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
+      if (container) container.scrollTop = container.scrollHeight;
     }
   }, [currentConversation.messages.length, isLoading]);
 
   useEffect(() => {
     if (isStreaming && !userScrolledUp.current) {
       const container = messagesContainerRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
+      if (container) container.scrollTop = container.scrollHeight;
     }
   }, [lastMessage?.content, isStreaming]);
 
+  const handleToolConfirm = useCallback(() => {
+    executeConfirmed(fioriContext?.odata_token ?? undefined);
+  }, [executeConfirmed, fioriContext]);
+
+  // ── Form submit ──────────────────────────────────────────────────────────────
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Never submit while the tool flow is active
+    if (toolState.phase !== "idle") return;
     if (isLoading) return;
 
-    // From a fresh chat, remember where the centered composer is so it can
-    // glide down to the bottom once the first message bumps us out of the
-    // empty state.
     if (isEmpty) captureComposerPosition();
 
     if (attachedFile) {
@@ -275,17 +323,13 @@ export const ChatbotApp = () => {
     }
 
     if (!inputValue.trim()) return;
-
     const message = inputValue.trim();
     setInputValue("");
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "24px";
-    }
-
+    if (textareaRef.current) textareaRef.current.style.height = "24px";
     await sendMessage(message);
   };
+
+  // ── Textarea key handler ─────────────────────────────────────────────────────
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -294,8 +338,11 @@ export const ChatbotApp = () => {
     }
   };
 
+  // ── Textarea change ──────────────────────────────────────────────────────────
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value);
+    const newValue = e.target.value;
+    setInputValue(newValue);
 
     if (textareaRef.current) {
       textareaRef.current.style.height = "24px";
@@ -303,15 +350,18 @@ export const ChatbotApp = () => {
     }
   };
 
+  // ── New chat ─────────────────────────────────────────────────────────────────
+
   const handleNewChat = () => {
-    // Coming from a conversation, remember the docked composer position so it
-    // glides up to the center as the empty state takes over.
     if (!isEmpty) captureComposerPosition();
     newConversation();
     setInputValue("");
     setAttachedFile(null);
+    resetTool();
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  // ── File attach ──────────────────────────────────────────────────────────────
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -327,23 +377,39 @@ export const ChatbotApp = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // ── Derived state ────────────────────────────────────────────────────────────
+
+  const showNormalForm = toolState.phase === "idle";
+
+  // Show inline forms (replaces the textarea)
+  const showParamCollector = toolState.phase === "param_collection";
+  // Show ConfirmationCard only when the user explicitly confirmed (not for direct execution)
+  const showConfirmation =
+    (toolState.phase === "confirmation" || toolState.phase === "executing") &&
+    !toolState.directExecute;
+  // Show a minimal spinner when executing directly (FUNCTION or no-confirmation ACTION)
+  const showDirectLoader =
+    toolState.phase === "executing" && !!toolState.directExecute;
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
   return (
     <div
       className={`chatbot-app${isInIframe ? " is-iframe" : ""}${isInIframe && isFullscreen ? " is-fullscreen" : ""}`}
     >
+      <PdfViewerHost />
       {sidebarOpen && (
         <div
           className="sidebar-backdrop"
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
       <ConversationSidebar
         conversations={conversations}
         currentId={currentConversation.id}
         onNewChat={handleNewChat}
-        onSelectConversation={(id: string) => {
-          setCurrentConversationId(id);
-        }}
+        onSelectConversation={(id: string) => setCurrentConversationId(id)}
         onDeleteConversation={deleteConversation}
         onClearAll={clearAll}
         onRenameConversation={renameConversation}
@@ -360,6 +426,7 @@ export const ChatbotApp = () => {
       )}
 
       <div className={`chat-main${isEmpty ? " is-empty" : ""}`}>
+        {/* ── Header ── */}
         <div className="chat-header">
           <button
             className="chat-header-menu-btn"
@@ -414,6 +481,7 @@ export const ChatbotApp = () => {
           </div>
         </div>
 
+        {/* ── Error banner ── */}
         {error && error !== dismissedError && (
           <div className="app-error-banner" role="alert">
             <span className="app-error-icon">⚠</span>
@@ -428,6 +496,7 @@ export const ChatbotApp = () => {
           </div>
         )}
 
+        {/* ── Messages ── */}
         <div className="messages-container" ref={messagesContainerRef}>
           {!isEmpty && (
             <div className="messages-wrapper">
@@ -457,6 +526,8 @@ export const ChatbotApp = () => {
                   );
                 },
               )}
+
+              {/* Thinking indicator */}
               {isLoading &&
                 !isStreaming &&
                 currentConversation.messages.length > 0 &&
@@ -464,7 +535,6 @@ export const ChatbotApp = () => {
                   currentConversation.messages.length - 1
                 ]?.role === "user" && (
                   <div className="loading-message">
-                    {/* <div className="loading-avatar">AI</div> */}
                     <div className="loading-bubble">
                       <svg
                         className="loading-spark-icon"
@@ -480,7 +550,10 @@ export const ChatbotApp = () => {
                           opacity="0.6"
                         />
                       </svg>
-                      <span className="loading-thinking-text" key={thinkingIdx}>
+                      <span
+                        className="loading-thinking-text"
+                        key={thinkingIdx}
+                      >
                         {THINKING_TEXTS[thinkingIdx]}
                       </span>
                       <span className="loading-bounce-dots">
@@ -495,6 +568,7 @@ export const ChatbotApp = () => {
           )}
         </div>
 
+        {/* ── Scroll-to-bottom FAB ── */}
         {showScrollBtn && (
           <button
             className="scroll-to-bottom-fab"
@@ -509,6 +583,7 @@ export const ChatbotApp = () => {
           </button>
         )}
 
+        {/* ── Input area ── */}
         <div className="input-area">
           {isEmpty && (
             <div className="empty-state">
@@ -518,88 +593,141 @@ export const ChatbotApp = () => {
           )}
 
           <div className="input-wrapper" ref={inputWrapperRef}>
-            {attachedFile && (
-              <div className="attached-file-preview">
-                <div className="file-chip">
-                  <span className="file-chip-icon">📎</span>
-                  <span className="file-chip-name">{attachedFile.name}</span>
-                  <span className="file-chip-size">
-                    {formatFileSize(attachedFile.size)}
-                  </span>
-                  <button
-                    className="file-chip-remove"
-                    onClick={() => {
-                      setAttachedFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                    title="Remove file"
-                  >
-                    <CrossIcon width={12} height={12} />
-                  </button>
-                </div>
+            {/* ── Execution animation log (vanishes after result) ── */}
+            {execSteps.length > 0 && <ExecutionLog steps={execSteps} />}
+
+            {/* ── Parameter collector (phase: param_collection) ── */}
+            {showParamCollector && toolState.selectedTool && (
+              <ParameterCollector
+                tool={toolState.selectedTool}
+                step={toolState.paramStep ?? 0}
+                params={toolState.params ?? {}}
+                onSubmit={submitParam}
+                onBack={toolGoBack}
+                onCancel={resetTool}
+              />
+            )}
+
+            {/* ── Confirmation / executing card (user-confirmed flow) ── */}
+            {showConfirmation && toolState.selectedTool && (
+              <ConfirmationCard
+                tool={toolState.selectedTool}
+                params={toolState.params ?? {}}
+                isExecuting={toolState.phase === "executing"}
+                onConfirm={handleToolConfirm}
+                onBack={toolGoBack}
+                onCancel={resetTool}
+              />
+            )}
+
+            {/* ── Direct execution loader (FUNCTION or no-confirmation ACTION) ── */}
+            {showDirectLoader && toolState.selectedTool && (
+              <div className="direct-exec-card">
+                <span className="direct-exec-spinner" aria-hidden="true" />
+                <span className="direct-exec-label">
+                  Executing{" "}
+                  {toolState.selectedTool.display_name ||
+                    toolState.selectedTool.name}
+                  …
+                </span>
               </div>
             )}
-            <form onSubmit={handleSubmit}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="file-input-hidden"
-                onChange={handleFileSelect}
-                accept=".pdf,.docx,.xlsx,.xls,.csv,.json,.txt,.md,.py,.js,.ts,.java,.html,.css,.xml,.yaml,.yml,.sql,.sh,.bat,.log,.env,.cfg,.ini"
-              />
-              <div className="input-container">
-                <textarea
-                  ref={textareaRef}
-                  className="message-input"
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder={
-                    attachedFile
-                      ? "Add a message about this file (optional)..."
-                      : "Ask anything"
-                  }
-                  rows={1}
-                  disabled={isLoading}
-                />
-                <div className="input-actions">
-                  <button
-                    type="button"
-                    className="add-btn"
-                    title="Attach file"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <PlusIcon />
-                  </button>
-                  <div className="input-actions-right">
-                    {isStreaming ? (
+
+            {/* ── Normal chat form (phase: idle | slash_menu) ── */}
+            {showNormalForm && (
+              <>
+                {attachedFile && (
+                  <div className="attached-file-preview">
+                    <div className="file-chip">
+                      <span className="file-chip-icon">📎</span>
+                      <span className="file-chip-name">
+                        {attachedFile.name}
+                      </span>
+                      <span className="file-chip-size">
+                        {formatFileSize(attachedFile.size)}
+                      </span>
+                      <button
+                        className="file-chip-remove"
+                        onClick={() => {
+                          setAttachedFile(null);
+                          if (fileInputRef.current)
+                            fileInputRef.current.value = "";
+                        }}
+                        title="Remove file"
+                        type="button"
+                      >
+                        <CrossIcon width={12} height={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="file-input-hidden"
+                    onChange={handleFileSelect}
+                    accept=".pdf,.docx,.xlsx,.xls,.csv,.json,.txt,.md,.py,.js,.ts,.java,.html,.css,.xml,.yaml,.yml,.sql,.sh,.bat,.log,.env,.cfg,.ini"
+                  />
+                  <div className="input-container">
+                    <textarea
+                      ref={textareaRef}
+                      className="message-input"
+                      value={inputValue}
+                      onChange={handleInputChange}
+                      onKeyDown={handleKeyDown}
+                      placeholder={
+                        attachedFile
+                          ? "Add a message about this file (optional)…"
+                          : "Ask me anything…"
+                      }
+                      rows={1}
+                      disabled={isLoading}
+                      aria-label="Chat message input"
+                    />
+                    <div className="input-actions">
                       <button
                         type="button"
-                        className="stop-btn"
-                        onClick={stopGenerating}
-                        title="Stop generating"
+                        className="add-btn"
+                        title="Attach file"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isLoading}
                       >
-                        <StopIcon />
+                        <PlusIcon />
                       </button>
-                    ) : (
-                      <button
-                        type="submit"
-                        className="send-btn"
-                        disabled={
-                          (!inputValue.trim() && !attachedFile) || isLoading
-                        }
-                        title="Send message"
-                      >
-                        <SendIcon />
-                      </button>
-                    )}
+                      <div className="input-actions-right">
+                        {isStreaming ? (
+                          <button
+                            type="button"
+                            className="stop-btn"
+                            onClick={stopGenerating}
+                            title="Stop generating"
+                          >
+                            <StopIcon />
+                          </button>
+                        ) : (
+                          <button
+                            type="submit"
+                            className="send-btn"
+                            disabled={
+                              (!inputValue.trim() && !attachedFile) || isLoading
+                            }
+                            title="Send message"
+                          >
+                            <SendIcon />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                </form>
+
+                <div className="input-hint">
+                  Press Enter to send · Shift + Enter for new line
                 </div>
-              </div>
-            </form>
-            <div className="input-hint">
-              Press Enter to send, Shift + Enter for new line
-            </div>
+              </>
+            )}
           </div>
         </div>
       </div>
