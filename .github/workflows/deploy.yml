@@ -1,13 +1,11 @@
 name: Build & Deploy Frontend to Cloud Foundry
 
 # Deploys the React app + approuter to CF whenever code lands on main
-# (i.e. when a PR is merged). Can also be run manually from the Actions tab.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Never let two deploys of the same branch run at once.
 concurrency:
   group: deploy-fe-${{ github.ref }}
   cancel-in-progress: false
@@ -80,8 +78,17 @@ jobs:
             exit 1;
           }
 
+      # Package only the runtime files needed by the approuter.
+      - name: Package runtime files
+        run: |
+          zip -r deploy.zip \
+            package.json \
+            package-lock.json \
+            xs-app.json \
+            resources/
+
       - name: Deploy (cf push)
-        run: cf push -f manifest.yml
+        run: cf push -f manifest.yml -p deploy.zip
 
       - name: Logout
         if: always()
