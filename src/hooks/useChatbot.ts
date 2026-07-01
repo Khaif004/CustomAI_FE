@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ChatMessage, Conversation, User } from "../types/chat";
+import type { ToolCallEvent } from "../types/tools";
 import {
   chatApi,
   authApi,
@@ -35,9 +36,21 @@ const checkAuthentication = (): boolean => {
   return !!tokenService.getToken();
 };
 
-export const useChatbot = (appId?: string | null) => {
+export interface ExecStep {
+  id: string;
+  label: string;
+  status: "active" | "done" | "error" | "pending";
+  num?: number;
+}
+
+export const useChatbot = (
+  appId?: string | null,
+  onToolCall?: (data: ToolCallEvent) => void,
+  onToolResult?: (data: Record<string, unknown>) => void,
+) => {
 
   const [embeddedAppId, setEmbeddedAppId] = useState<string | null>(null);
+  const [execSteps, setExecSteps] = useState<ExecStep[]>([]);
 
   const effectiveAppId = embeddedAppId ?? appId ?? null;
 
@@ -742,6 +755,79 @@ export const useChatbot = (appId?: string | null) => {
             void docType;
           },
           fioriContext,
+          onToolCall,
+          (data) => {
+            // Handle UI_ACTION tool_result events from inline backend execution
+            if (data.execution_type === "UI_ACTION" && data.frontend_event) {
+              const eventName = data.frontend_event as string;
+              const payload   = (data.payload ?? {}) as Record<string, unknown>;
+              window.dispatchEvent(new CustomEvent(eventName, { detail: payload, bubbles: true }));
+              // Primary channel: postMessage to parent (works when embedded in widget iframe)
+              window.parent.postMessage({ type: "btp-copilot:ui-action", event: eventName, payload }, "*");
+              // Relay channel: POST to backend so the widget can poll even when standalone
+              if (eventName === "BTP_NAVIGATE" && payload.app_id) {
+                fetch("/api/navigation/pending", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                }).catch(() => { /* non-critical */ });
+              }
+            }
+            onToolResult?.(data);
+            // Clear execution steps after a short pause so the result chunk renders first
+            setTimeout(() => setExecSteps([]), 900);
+          },
+          (ev) => {
+            // Ordered pipeline steps — used to pre-populate pending steps
+            const STEP_ORDER = ["analyzing", "found", "preparing", "executing"];
+            const ACTIVE_LABELS: Record<string, string> = {
+              analyzing: "Analyzing your request",
+              found:     `Identified: ${ev.tool ?? "action"}`,
+              preparing: `Preparing${ev.entity ? ` for ${ev.entity}` : ""} request`,
+              executing: "Sending to CAP service",
+            };
+            const PENDING_LABELS: Record<string, string> = {
+              found:     "Identifying action",
+              preparing: "Preparing request",
+              executing: "Executing action",
+            };
+
+            setExecSteps((prev) => {
+              // Terminal events: clear pending, mark active as done or error
+              if (ev.step === "success" || ev.step === "error") {
+                const terminal = ev.step === "success" ? "done" as const : "error" as const;
+                return prev
+                  .filter((s) => s.status !== "pending")
+                  .map((s) => (s.status === "active" ? { ...s, status: terminal } : s));
+              }
+
+              // Mark current active → done, remove stale pending placeholders
+              const base = prev
+                .map((s) => (s.status === "active" ? { ...s, status: "done" as const } : s))
+                .filter((s) => s.status !== "pending");
+
+              // New active step
+              const newActive: ExecStep = {
+                id:     ev.step,
+                label:  ACTIVE_LABELS[ev.step] ?? ev.step,
+                status: "active",
+                num:    ev.step_num,
+              };
+
+              // Pre-populate remaining steps as pending
+              const stepIdx = STEP_ORDER.indexOf(ev.step);
+              const pending: ExecStep[] = stepIdx >= 0
+                ? STEP_ORDER.slice(stepIdx + 1).map((id, i) => ({
+                    id,
+                    label:  PENDING_LABELS[id] ?? id,
+                    status: "pending" as const,
+                    num:    (ev.step_num ?? stepIdx + 1) + i + 1,
+                  }))
+                : [];
+
+              return [...base, newActive, ...pending];
+            });
+          },
         );
       } catch (err) {
         abortControllersRef.current.delete(convIdAtSendTime);
@@ -1181,6 +1267,33 @@ export const useChatbot = (appId?: string | null) => {
     [currentConversationId],
   );
 
+  // Directly append an assistant message without going through the LLM.
+  // Used by the tool execution flow to display action results.
+  const addAssistantMessage = useCallback(
+    (content: string) => {
+      const msgId = Math.random().toString(36).slice(2);
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== currentConversationId) return c;
+          return {
+            ...c,
+            messages: [
+              ...c.messages,
+              {
+                id: msgId,
+                role: "assistant" as const,
+                content,
+                timestamp: new Date(),
+              },
+            ],
+            updatedAt: new Date(),
+          };
+        }),
+      );
+    },
+    [currentConversationId],
+  );
+
   return {
     conversations,
     currentConversation,
@@ -1205,5 +1318,7 @@ export const useChatbot = (appId?: string | null) => {
     editMessage,
     regenerateLastResponse,
     reactToMessage,
+    addAssistantMessage,
+    execSteps,
   };
 };
