@@ -1,4 +1,5 @@
 import type { ChatResponse, AuthResponse, User } from "../types/chat";
+import type { ToolDefinition, ActionExecutionResult, ToolCallEvent } from "../types/tools";
 import { authTokenService, refreshAccessToken } from "../hooks/useOAuth2";
 
 const friendlyHttpError = (status: number, detail?: unknown): string => {
@@ -257,6 +258,9 @@ export const chatApi = {
     }) => void,
     onDocGenerating?: (docType: string) => void,
     fioriContext?: Record<string, any> | null,
+    onToolCall?: (data: ToolCallEvent) => void,
+    onToolResult?: (data: Record<string, unknown>) => void,
+    onExecStatus?: (data: { step: string; tool?: string; message?: string; entity?: string; step_num?: number; total_steps?: number }) => void,
   ) => {
     if (authTokenService.getTokens() && authTokenService.isExpired()) {
       try {
@@ -332,6 +336,12 @@ export const chatApi = {
                   title: data.message || "Document generation failed",
                   content_base64: "",
                 });
+              } else if (data.type === "tool_call") {
+                onToolCall?.(data as ToolCallEvent);
+              } else if (data.type === "tool_result") {
+                onToolResult?.(data as Record<string, unknown>);
+              } else if (data.type === "exec_status") {
+                onExecStatus?.(data as { step: string; tool?: string; message?: string; entity?: string; step_num?: number; total_steps?: number });
               } else if (data.type === "error") {
                 onError(data.message || "The server reported an error.");
               }
@@ -513,5 +523,63 @@ export const healthApi = {
     })
       .then((r) => r.json())
       .catch(() => ({ status: "offline" }));
+  },
+};
+
+export const toolsApi = {
+  listTools: async (appId: string): Promise<ToolDefinition[]> => {
+    const result = await apiCall(`/api/apps/${appId}/tools`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (result.tools ?? []).map((t: any): ToolDefinition => ({
+      tool_key: t.toolKey ?? t.tool_key,
+      tool_type: t.toolType ?? t.tool_type,
+      binding: t.binding,
+      name: t.name,
+      display_name: t.displayName ?? t.display_name,
+      description: t.description ?? undefined,
+      service_name: t.serviceName ?? t.service_name,
+      entity_name: t.entityName ?? t.entity_name ?? undefined,
+      bound_entity: t.boundEntity ?? t.bound_entity ?? undefined,
+      http_method: t.httpMethod ?? t.http_method,
+      http_endpoint: t.httpEndpoint ?? t.http_endpoint,
+      cds_name: t.cdsName ?? t.cds_name ?? undefined,
+      parameters: (t.parameters ?? []).map((p: any) => ({
+        name: p.name,
+        type: p.type,
+        cds_type: p.cdsType ?? p.cds_type,
+        required: p.required ?? false,
+        is_collection: p.isCollection ?? p.is_collection ?? false,
+        length: p.length ?? undefined,
+        description: p.description ?? undefined,
+      })),
+      required_parameters: t.requiredParameters ?? t.required_parameters ?? [],
+    }));
+  },
+
+  checkConfirmation: async (
+    appId: string,
+    toolKey: string,
+  ): Promise<boolean> => {
+    const result = await apiCall(
+      `/api/apps/${appId}/actions/${toolKey}/confirmation`,
+    );
+    return !!result.requires_confirmation;
+  },
+
+  executeTool: async (
+    appId: string,
+    toolKey: string,
+    parameters: Record<string, unknown>,
+    entityKey?: string,
+    odataToken?: string,
+  ): Promise<ActionExecutionResult> => {
+    return apiCall(`/api/apps/${appId}/actions/${toolKey}/execute`, {
+      method: "POST",
+      body: JSON.stringify({
+        parameters,
+        entity_key: entityKey ?? null,
+        odata_token: odataToken ?? null,
+      }),
+    });
   },
 };
