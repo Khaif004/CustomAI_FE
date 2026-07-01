@@ -282,7 +282,10 @@ export const ChatMessage = ({
         const headerRow = tableRows[0];
         const bodyRows = tableRows.slice(1);
         elements.push(
-          <div key={`table-wrap-${tableKey}`} className={`table-wrapper${isStreaming ? " table-streaming" : ""}`}>
+          <div
+            key={`table-wrap-${tableKey}`}
+            className={`table-wrapper${isStreaming ? " table-streaming" : ""}`}
+          >
             <table key={`table-${tableKey++}`}>
               <thead>
                 <tr>
@@ -536,7 +539,9 @@ export const ChatMessage = ({
                 </span>
               </div>
             )}
-            <div className={`message-body${isStreaming && message.role === "assistant" ? " is-streaming" : ""}`}>
+            <div
+              className={`message-body${isStreaming && message.role === "assistant" ? " is-streaming" : ""}`}
+            >
               {message.role === "assistant" && showRaw ? (
                 <pre className="raw-markdown">{displayedText}</pre>
               ) : isCodeBlock ? (

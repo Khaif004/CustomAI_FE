@@ -1,10 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useRef,
-  type FC,
-  type RefObject,
-} from "react";
+import { useState, useEffect, useRef, type FC, type RefObject } from "react";
 import type { ToolDefinition, ToolParameter } from "../../types/tools";
 
 interface Props {
@@ -30,9 +24,7 @@ export const ParameterCollector: FC<Props> = ({
     if (existing === undefined || existing === null) {
       return param?.type === "Boolean" ? false : "";
     }
-    return param?.type === "Boolean"
-      ? Boolean(existing)
-      : String(existing);
+    return param?.type === "Boolean" ? Boolean(existing) : String(existing);
   });
   const [validationError, setValidationError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,13 +56,11 @@ export const ParameterCollector: FC<Props> = ({
   const validate = (): boolean => {
     const strVal = String(value).trim();
     if (param.required && strVal === "" && param.type !== "Boolean") {
-      setValidationError(
-        `${param.description || param.name} is required`,
-      );
+      setValidationError(`${param.description || param.name} is required`);
       return false;
     }
     if (
-      (param.type === "Integer") &&
+      param.type === "Integer" &&
       strVal !== "" &&
       !Number.isInteger(Number(strVal))
     ) {
@@ -145,18 +135,10 @@ export const ParameterCollector: FC<Props> = ({
       </div>
 
       <div className="param-collector-footer">
-        <button
-          className="param-back-btn"
-          onClick={onBack}
-          type="button"
-        >
+        <button className="param-back-btn" onClick={onBack} type="button">
           ← Back
         </button>
-        <button
-          className="param-next-btn"
-          onClick={handleSubmit}
-          type="button"
-        >
+        <button className="param-next-btn" onClick={handleSubmit} type="button">
           {isLastStep ? "Review →" : "Next →"}
         </button>
       </div>
@@ -203,9 +185,7 @@ function renderParamInput({
             aria-label={param.description || param.name}
           />
           <span className="param-switch-track" aria-hidden="true" />
-          <span className="param-switch-label">
-            {value ? "Yes" : "No"}
-          </span>
+          <span className="param-switch-label">{value ? "Yes" : "No"}</span>
         </label>
       );
 

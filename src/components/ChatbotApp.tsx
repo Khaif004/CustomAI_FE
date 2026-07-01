@@ -231,8 +231,7 @@ export const ChatbotApp = () => {
     const handleOutside = (e: MouseEvent) => {
       if (!window.matchMedia("(max-width: 48rem)").matches) return;
       const sidebar = document.querySelector(".sidebar");
-      if (sidebar && !sidebar.contains(e.target as Node))
-        setSidebarOpen(false);
+      if (sidebar && !sidebar.contains(e.target as Node)) setSidebarOpen(false);
     };
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
@@ -550,10 +549,7 @@ export const ChatbotApp = () => {
                           opacity="0.6"
                         />
                       </svg>
-                      <span
-                        className="loading-thinking-text"
-                        key={thinkingIdx}
-                      >
+                      <span className="loading-thinking-text" key={thinkingIdx}>
                         {THINKING_TEXTS[thinkingIdx]}
                       </span>
                       <span className="loading-bounce-dots">

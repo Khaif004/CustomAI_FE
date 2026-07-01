@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import crossIcon from "../assets/crossWhiteIcon.svg";
 import "../styles/Modal.scss";
 
-const CLOSE_DURATION = 220; // ms — must match the CSS animation duration
+const CLOSE_DURATION = 220;
 
 interface ModalProps {
   isOpen: boolean;
@@ -74,6 +74,6 @@ export const Modal: React.FC<ModalProps> = ({
         <div className="modal-body">{children}</div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };

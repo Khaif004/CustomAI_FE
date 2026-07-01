@@ -78,7 +78,8 @@ export const ConversationSidebar = ({
 
     if (openMenuId) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [openMenuId]);
 

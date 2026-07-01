@@ -105,16 +105,19 @@ export const ToolPicker: FC<Props> = ({
     if (!query) return true;
     const q = query.toLowerCase();
     return (
-      formatName(t.display_name || t.name).toLowerCase().includes(q) ||
+      formatName(t.display_name || t.name)
+        .toLowerCase()
+        .includes(q) ||
       (t.display_name || t.name).toLowerCase().includes(q) ||
       (t.entity_name ?? "").toLowerCase().includes(q)
     );
   });
 
   useEffect(() => {
-    const item = listRef.current?.querySelectorAll<HTMLButtonElement>(
-      ".slash-popup-item",
-    )[selectedIdx];
+    const item =
+      listRef.current?.querySelectorAll<HTMLButtonElement>(".slash-popup-item")[
+        selectedIdx
+      ];
     item?.scrollIntoView({ block: "nearest" });
   }, [selectedIdx]);
 
@@ -216,7 +219,9 @@ export function filteredTools(
     if (!query) return true;
     const q = query.toLowerCase();
     return (
-      formatName(t.display_name || t.name).toLowerCase().includes(q) ||
+      formatName(t.display_name || t.name)
+        .toLowerCase()
+        .includes(q) ||
       (t.display_name || t.name).toLowerCase().includes(q) ||
       (t.entity_name ?? "").toLowerCase().includes(q)
     );

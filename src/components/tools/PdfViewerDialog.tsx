@@ -28,13 +28,25 @@ const PdfViewerDialog = ({ onClose, payload }: Props) => {
         <div className="pdf-dialog-header">
           <span className="pdf-dialog-title">{title || "Document"}</span>
           <div className="pdf-dialog-actions">
-            <button className="pdf-btn pdf-btn-print" onClick={handlePrint} title="Print">
+            <button
+              className="pdf-btn pdf-btn-print"
+              onClick={handlePrint}
+              title="Print"
+            >
               🖨️ Print
             </button>
-            <button className="pdf-btn pdf-btn-view" onClick={handleView} title="Open in new tab">
+            <button
+              className="pdf-btn pdf-btn-view"
+              onClick={handleView}
+              title="Open in new tab"
+            >
               🔗 View
             </button>
-            <button className="pdf-btn pdf-btn-close" onClick={onClose} title="Close">
+            <button
+              className="pdf-btn pdf-btn-close"
+              onClick={onClose}
+              title="Close"
+            >
               ✕
             </button>
           </div>
