@@ -179,7 +179,7 @@ interface InputProps {
   param: ToolParameter;
   value: string | boolean;
   setValue: (v: string | boolean) => void;
-  inputRef: RefObject<HTMLInputElement>;
+  inputRef: RefObject<HTMLInputElement | null>;
   onKeyDown: (e: React.KeyboardEvent) => void;
 }
 
