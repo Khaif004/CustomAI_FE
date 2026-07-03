@@ -141,7 +141,7 @@ export async function useOAuth2(): Promise<AuthTokens> {
     return currentPopup.promise;
   }
 
-  const authUrl = `${OAUTH_CONFIG.authUrl}?${new URLSearchParams({
+  const authUrl = `${OAUTH_CONFIG.authUrl}/oauth/authorize?${new URLSearchParams({
     response_type: OAUTH_CONFIG.responseType,
     client_id: OAUTH_CONFIG.clientId,
     redirect_uri: OAUTH_CONFIG.redirectUri,
