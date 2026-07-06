@@ -13,6 +13,7 @@ import {
   logout as oauthLogout,
   refreshAccessToken,
 } from "./useOAuth2";
+import { executionManager } from "../execution/ExecutionManager";
 
 const STORAGE_KEY = "chatbot_conversations";
 const CURRENT_CONV_KEY = "currentConversation";
@@ -641,6 +642,7 @@ export const useChatbot = (
             )
               return;
             abortControllersRef.current.delete(convIdAtSendTime);
+            executionManager.reset();
             if (currentConvIdRef.current === convIdAtSendTime) {
               stopTypewriter();
             }
@@ -774,59 +776,10 @@ export const useChatbot = (
               }
             }
             onToolResult?.(data);
-            // Clear execution steps after a short pause so the result chunk renders first
-            setTimeout(() => setExecSteps([]), 900);
+            executionManager.handleToolResult();
           },
           (ev) => {
-            // Ordered pipeline steps — used to pre-populate pending steps
-            const STEP_ORDER = ["analyzing", "found", "preparing", "executing"];
-            const ACTIVE_LABELS: Record<string, string> = {
-              analyzing: "Analyzing your request",
-              found:     `Identified: ${ev.tool ?? "action"}`,
-              preparing: `Preparing${ev.entity ? ` for ${ev.entity}` : ""} request`,
-              executing: "Sending to CAP service",
-            };
-            const PENDING_LABELS: Record<string, string> = {
-              found:     "Identifying action",
-              preparing: "Preparing request",
-              executing: "Executing action",
-            };
-
-            setExecSteps((prev) => {
-              // Terminal events: clear pending, mark active as done or error
-              if (ev.step === "success" || ev.step === "error") {
-                const terminal = ev.step === "success" ? "done" as const : "error" as const;
-                return prev
-                  .filter((s) => s.status !== "pending")
-                  .map((s) => (s.status === "active" ? { ...s, status: terminal } : s));
-              }
-
-              // Mark current active → done, remove stale pending placeholders
-              const base = prev
-                .map((s) => (s.status === "active" ? { ...s, status: "done" as const } : s))
-                .filter((s) => s.status !== "pending");
-
-              // New active step
-              const newActive: ExecStep = {
-                id:     ev.step,
-                label:  ACTIVE_LABELS[ev.step] ?? ev.step,
-                status: "active",
-                num:    ev.step_num,
-              };
-
-              // Pre-populate remaining steps as pending
-              const stepIdx = STEP_ORDER.indexOf(ev.step);
-              const pending: ExecStep[] = stepIdx >= 0
-                ? STEP_ORDER.slice(stepIdx + 1).map((id, i) => ({
-                    id,
-                    label:  PENDING_LABELS[id] ?? id,
-                    status: "pending" as const,
-                    num:    (ev.step_num ?? stepIdx + 1) + i + 1,
-                  }))
-                : [];
-
-              return [...base, newActive, ...pending];
-            });
+            executionManager.handleExecStatus(ev);
           },
         );
       } catch (err) {
@@ -1116,6 +1069,7 @@ export const useChatbot = (
             )
               return;
             abortControllersRef.current.delete(convIdAtSendTime);
+            executionManager.reset();
             if (currentConvIdRef.current === convIdAtSendTime) {
               stopTypewriter();
             }

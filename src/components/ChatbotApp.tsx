@@ -12,7 +12,8 @@ import { useToolExecution } from "../hooks/useToolExecution";
 import { ParameterCollector } from "./tools/ParameterCollector";
 import { ConfirmationCard } from "./tools/ConfirmationCard";
 import { PdfViewerHost } from "./tools/PdfViewerDialog";
-import { ExecutionLog } from "./tools/ExecutionLog";
+import { ExecutionProvider } from "../execution/ExecutionContext";
+import { ActiveExecutionCards } from "./execution/ExecutionCard";
 import { navigate } from "./Router";
 import SettingsGearIcon from "../assets/settingsGearIcon.svg?react";
 import PlusIcon from "../assets/newChatPlusIcon.svg?react";
@@ -80,7 +81,6 @@ export const ChatbotApp = () => {
     regenerateLastResponse,
     reactToMessage,
     addAssistantMessage,
-    execSteps,
   } = useChatbot(
     appId,
     useCallback(
@@ -393,6 +393,7 @@ export const ChatbotApp = () => {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
+    <ExecutionProvider>
     <div
       className={`chatbot-app${isInIframe ? " is-iframe" : ""}${isInIframe && isFullscreen ? " is-fullscreen" : ""}`}
     >
@@ -590,7 +591,7 @@ export const ChatbotApp = () => {
 
           <div className="input-wrapper" ref={inputWrapperRef}>
             {/* ── Execution animation log (vanishes after result) ── */}
-            {execSteps.length > 0 && <ExecutionLog steps={execSteps} />}
+            <ActiveExecutionCards />
 
             {/* ── Parameter collector (phase: param_collection) ── */}
             {showParamCollector && toolState.selectedTool && (
@@ -728,5 +729,6 @@ export const ChatbotApp = () => {
         </div>
       </div>
     </div>
+    </ExecutionProvider>
   );
 };
