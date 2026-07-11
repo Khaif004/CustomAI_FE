@@ -26,27 +26,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The .env.production file is gitignored (it holds secrets), so we
-      # recreate it from GitHub Secrets. Vite bakes VITE_* values into the
-      # bundle at build time, so they MUST exist before `npm run build`.
 
-      - name: Create build-time env file
+      - name: Build (tsc + vite -> resources/)
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_XSUAA_CLIENT_ID: ${{ secrets.VITE_XSUAA_CLIENT_ID }}
           VITE_XSUAA_CLIENT_SECRET: ${{ secrets.VITE_XSUAA_CLIENT_SECRET }}
           VITE_XSUAA_AUTH_URL: ${{ secrets.VITE_XSUAA_AUTH_URL }}
           VITE_XSUAA_TOKEN_URL: ${{ secrets.VITE_XSUAA_TOKEN_URL }}
-        run: |
-          {
-            echo "VITE_API_URL=${VITE_API_URL}"
-            echo "VITE_XSUAA_CLIENT_ID=${VITE_XSUAA_CLIENT_ID}"
-            printf "VITE_XSUAA_CLIENT_SECRET='%s'\n" "${VITE_XSUAA_CLIENT_SECRET}"
-            echo "VITE_XSUAA_AUTH_URL=${VITE_XSUAA_AUTH_URL}"
-            echo "VITE_XSUAA_TOKEN_URL=${VITE_XSUAA_TOKEN_URL}"
-          } > .env.production
-
-      - name: Build (tsc + vite -> resources/)
         run: npm run build
 
       - name: Install Cloud Foundry CLI v8
