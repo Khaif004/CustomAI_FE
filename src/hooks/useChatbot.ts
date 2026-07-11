@@ -50,7 +50,7 @@ export const useChatbot = (
   onToolResult?: (data: Record<string, unknown>) => void,
 ) => {
   const [embeddedAppId, setEmbeddedAppId] = useState<string | null>(null);
-  const [execSteps, setExecSteps] = useState<ExecStep[]>([]);
+  const [execSteps] = useState<ExecStep[]>([]);
 
   const effectiveAppId = embeddedAppId ?? appId ?? null;
 
