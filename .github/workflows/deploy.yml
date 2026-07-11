@@ -41,7 +41,7 @@ jobs:
           {
             echo "VITE_API_URL=${VITE_API_URL}"
             echo "VITE_XSUAA_CLIENT_ID=${VITE_XSUAA_CLIENT_ID}"
-            echo "VITE_XSUAA_CLIENT_SECRET=${VITE_XSUAA_CLIENT_SECRET}"
+            printf "VITE_XSUAA_CLIENT_SECRET='%s'\n" "${VITE_XSUAA_CLIENT_SECRET}"
             echo "VITE_XSUAA_AUTH_URL=${VITE_XSUAA_AUTH_URL}"
             echo "VITE_XSUAA_TOKEN_URL=${VITE_XSUAA_TOKEN_URL}"
           } > .env.production
