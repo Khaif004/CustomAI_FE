@@ -49,7 +49,6 @@ export const useChatbot = (
   onToolCall?: (data: ToolCallEvent) => void,
   onToolResult?: (data: Record<string, unknown>) => void,
 ) => {
-
   const [embeddedAppId, setEmbeddedAppId] = useState<string | null>(null);
   const [execSteps, setExecSteps] = useState<ExecStep[]>([]);
 
@@ -85,7 +84,7 @@ export const useChatbot = (
   );
 
   const loadedAppIdRef = useRef<string | null>(
-    startsUnloaded ? UNLOADED : appId ?? null,
+    startsUnloaded ? UNLOADED : (appId ?? null),
   );
 
   const [isLoading, setIsLoading] = useState(false);
@@ -271,7 +270,6 @@ export const useChatbot = (
   };
 
   useEffect(() => {
-
     if (loadedAppIdRef.current !== effectiveAppId) return;
     localStorage.setItem(storageKey, JSON.stringify(conversations));
   }, [conversations, storageKey, effectiveAppId]);
@@ -762,17 +760,24 @@ export const useChatbot = (
             // Handle UI_ACTION tool_result events from inline backend execution
             if (data.execution_type === "UI_ACTION" && data.frontend_event) {
               const eventName = data.frontend_event as string;
-              const payload   = (data.payload ?? {}) as Record<string, unknown>;
-              window.dispatchEvent(new CustomEvent(eventName, { detail: payload, bubbles: true }));
+              const payload = (data.payload ?? {}) as Record<string, unknown>;
+              window.dispatchEvent(
+                new CustomEvent(eventName, { detail: payload, bubbles: true }),
+              );
               // Primary channel: postMessage to parent (works when embedded in widget iframe)
-              window.parent.postMessage({ type: "btp-copilot:ui-action", event: eventName, payload }, "*");
+              window.parent.postMessage(
+                { type: "btp-copilot:ui-action", event: eventName, payload },
+                "*",
+              );
               // Relay channel: POST to backend so the widget can poll even when standalone
               if (eventName === "BTP_NAVIGATE" && payload.app_id) {
                 fetch("/api/navigation/pending", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload),
-                }).catch(() => { /* non-critical */ });
+                }).catch(() => {
+                  /* non-critical */
+                });
               }
             }
             onToolResult?.(data);
@@ -847,7 +852,12 @@ export const useChatbot = (
         setIsLoading(false);
       }
     },
-    [currentConversationId, isAuthenticated, currentConversation, effectiveAppId],
+    [
+      currentConversationId,
+      isAuthenticated,
+      currentConversation,
+      effectiveAppId,
+    ],
   );
 
   const newConversation = useCallback(() => {
@@ -1147,7 +1157,12 @@ export const useChatbot = (
         setIsLoading(false);
       }
     },
-    [currentConversationId, isAuthenticated, currentConversation, effectiveAppId],
+    [
+      currentConversationId,
+      isAuthenticated,
+      currentConversation,
+      effectiveAppId,
+    ],
   );
 
   const editMessage = useCallback(
