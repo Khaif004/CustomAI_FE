@@ -128,7 +128,7 @@
   flex-shrink: 0;
   animation: exec-card-pulse 1.5s ease-in-out infinite;
 
-  &--done {
+  &--done { 
     background: #22c55e;
     animation: none;
     // Pop in when switching to done
