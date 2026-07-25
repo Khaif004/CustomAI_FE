@@ -5,7 +5,7 @@ export interface FileAttachment {
 }
 
 export interface GeneratedDocument {
-  doc_type: 'word' | 'pdf' | 'excel' | 'error';
+  doc_type: "word" | "pdf" | "excel" | "error";
   filename: string;
   title: string;
   content_base64: string;
@@ -13,12 +13,12 @@ export interface GeneratedDocument {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: Date;
   modelUsed?: string;
   responseTime?: number;
-  reaction?: 'thumbs-up' | 'thumbs-down' | null;
+  reaction?: "thumbs-up" | "thumbs-down" | null;
   attachment?: FileAttachment;
   generatedDocument?: GeneratedDocument;
   isGeneratingDoc?: boolean;

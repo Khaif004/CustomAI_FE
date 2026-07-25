@@ -757,24 +757,21 @@ export const useChatbot = (
           fioriContext,
           onToolCall,
           (data) => {
-            // Handle UI_ACTION tool_result events from inline backend execution
             if (data.execution_type === "UI_ACTION" && data.frontend_event) {
               const eventName = data.frontend_event as string;
               const payload = (data.payload ?? {}) as Record<string, unknown>;
               window.dispatchEvent(
                 new CustomEvent(eventName, { detail: payload, bubbles: true }),
               );
-              // Primary channel: postMessage to parent (works when embedded in widget iframe)
               window.parent.postMessage(
                 { type: "btp-copilot:ui-action", event: eventName, payload },
                 "*",
               );
-              // Relay channel: POST to backend so the widget can poll even when standalone
-              if (eventName === "BTP_NAVIGATE" && payload.app_id) {
+              if (eventName === "BTP_NAVIGATE" && payload.appId) {
                 fetch("/api/navigation/pending", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload),
+                  body: JSON.stringify({ ...payload, app_id: payload.appId }),
                 }).catch(() => {
                   /* non-critical */
                 });
