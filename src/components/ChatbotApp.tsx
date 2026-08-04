@@ -26,7 +26,6 @@ import ChevronDownIcon from "../assets/chevronDownIcon.svg?react";
 import HamburgerMenuIcon from "../assets/hamburgerMenuIcon.svg?react";
 import FullscreenIcon from "../assets/fullscreenIcon.svg?react";
 import ExitFullscreenIcon from "../assets/exitFullscreenIcon.svg?react";
-import MinimizeIcon from "../assets/minimizeIcon.svg?react";
 import "../styles/ChatbotApp.scss";
 import "../styles/ChatMessage.scss";
 import "../styles/ConversationSidebar.scss";
@@ -208,10 +207,6 @@ export const ChatbotApp = () => {
   const handleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => !prev);
     window.parent.postMessage({ type: "btp-copilot:fullscreen" }, "*");
-  }, []);
-
-  const handleMinimize = useCallback(() => {
-    window.parent.postMessage({ type: "btp-copilot:minimize" }, "*");
   }, []);
 
   const handleClose = useCallback(() => {
@@ -461,13 +456,6 @@ export const ChatbotApp = () => {
                   title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                 >
                   {isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
-                </button>
-                <button
-                  className="iframe-ctrl-btn minimize-btn"
-                  onClick={handleMinimize}
-                  title="Minimize"
-                >
-                  <MinimizeIcon />
                 </button>
                 <button
                   className="iframe-ctrl-btn close-btn"

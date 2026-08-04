@@ -1142,11 +1142,6 @@
     color: var(--error);
   }
 
-  &.minimize-btn:hover {
-    background: rgba(245, 158, 11, 0.12);
-    color: var(--warning);
-  }
-
   &.fullscreen-btn:hover {
     background: rgba(102, 126, 234, 0.12);
     color: var(--accent-primary);
